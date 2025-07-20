@@ -28,9 +28,27 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.runBlocking
 import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
 import com.jaredforsyth.kidspictures.ui.theme.*
 import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
+
+@Composable
+private fun createImageRequest(
+    context: android.content.Context,
+    url: String,
+    authToken: String?
+): ImageRequest {
+    return ImageRequest.Builder(context)
+        .data(url)
+        .apply {
+            if (authToken != null) {
+                addHeader("Authorization", "Bearer $authToken")
+            }
+        }
+        .build()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +58,12 @@ fun PhotoGalleryScreen(
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
+    val context = LocalContext.current
+
+    // Get auth token for authenticated image requests
+    val authToken = remember {
+        runBlocking { pickerViewModel.getAccessToken() }
+    }
 
     Scaffold(
         topBar = {
@@ -141,7 +165,11 @@ fun PhotoGalleryScreen(
                         ) {
                             itemsIndexed(pickerState.selectedMediaItems) { index, mediaItem ->
                                 AsyncImage(
-                                    model = "${mediaItem.mediaFile.baseUrl}=w300-h300-c", // Use Google Photos sizing
+                                    model = createImageRequest(
+                                        context = context,
+                                        url = "${mediaItem.mediaFile.baseUrl}=w300-h300-c", // Use Google Photos sizing
+                                        authToken = authToken
+                                    ),
                                     contentDescription = mediaItem.mediaFile.filename,
                                     modifier = Modifier
                                         .aspectRatio(1f)
@@ -164,7 +192,9 @@ fun PhotoGalleryScreen(
         FullScreenPhotoViewer(
             photos = pickerState.selectedMediaItems,
             initialIndex = selectedPhotoIndex,
-            onDismiss = { selectedPhotoIndex = -1 }
+            onDismiss = { selectedPhotoIndex = -1 },
+            context = context,
+            authToken = authToken
         )
     }
 }
@@ -174,7 +204,9 @@ fun PhotoGalleryScreen(
 fun FullScreenPhotoViewer(
     photos: List<PickedMediaItem>,
     initialIndex: Int,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    context: android.content.Context,
+    authToken: String?
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -197,7 +229,11 @@ fun FullScreenPhotoViewer(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 AsyncImage(
-                    model = "${photos[page].mediaFile.baseUrl}=w1024-h1024", // High quality for full screen
+                    model = createImageRequest(
+                        context = context,
+                        url = "${photos[page].mediaFile.baseUrl}=w1024-h1024", // High quality for full screen
+                        authToken = authToken
+                    ),
                     contentDescription = photos[page].mediaFile.filename,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit

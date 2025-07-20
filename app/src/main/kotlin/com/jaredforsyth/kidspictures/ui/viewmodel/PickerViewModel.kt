@@ -77,6 +77,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    suspend fun getAccessToken(): String? {
+        return authManager.getAccessToken()
+    }
+
     fun createPickerSession() {
         viewModelScope.launch {
             _pickerState.value = _pickerState.value.copy(isLoading = true, error = null)
