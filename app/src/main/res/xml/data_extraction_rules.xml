@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+	<cloud-backup>
+		<!-- Exclude cache and temporary files -->
+		<exclude domain="cache" />
+		<exclude domain="files" path="temp/" />
+	</cloud-backup>
+	<device-transfer>
+		<!-- Include user preferences -->
+		<include domain="sharedpref" path="." />
+	</device-transfer>
+</data-extraction-rules>
