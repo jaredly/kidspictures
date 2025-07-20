@@ -1,7 +1,7 @@
-package com.kidspictures.app.data.repository
+package com.jaredforsyth.kidspictures.data.repository
 
-import com.kidspictures.app.data.api.GooglePhotosPickerApiService
-import com.kidspictures.app.data.models.*
+import com.jaredforsyth.kidspictures.data.api.GooglePhotosPickerApiService
+import com.jaredforsyth.kidspictures.data.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Retrofit

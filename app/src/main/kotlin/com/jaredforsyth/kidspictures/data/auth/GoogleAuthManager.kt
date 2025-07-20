@@ -1,4 +1,4 @@
-package com.kidspictures.app.data.auth
+package com.jaredforsyth.kidspictures.data.auth
 
 import android.content.Context
 import android.content.Intent
@@ -15,7 +15,7 @@ class GoogleAuthManager(private val context: Context) {
         // TODO: Replace this with your actual Web OAuth Client ID from Google Cloud Console
         // Get it from: https://console.cloud.google.com/apis/credentials
         // Use the "Web application" type client ID (not Android)
-        val webClientId = "YOUR_WEB_CLIENT_ID"
+        val webClientId = "1082317168625-dpg0nshsdm5envhmobvfk55mf6s9boo1.apps.googleusercontent.com"
 
         if (webClientId == "YOUR_WEB_CLIENT_ID") {
             throw IllegalStateException(

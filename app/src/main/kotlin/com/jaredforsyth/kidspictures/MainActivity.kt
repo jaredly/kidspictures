@@ -1,4 +1,4 @@
-package com.kidspictures.app
+package com.jaredforsyth.kidspictures
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,10 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.kidspictures.app.ui.screens.PhotoGalleryScreen
-import com.kidspictures.app.ui.screens.PickerLaunchScreen
-import com.kidspictures.app.ui.screens.SignInScreen
-import com.kidspictures.app.ui.theme.KidsPicturesTheme
+import com.jaredforsyth.kidspictures.ui.screens.PhotoGalleryScreen
+import com.jaredforsyth.kidspictures.ui.screens.PickerLaunchScreen
+import com.jaredforsyth.kidspictures.ui.screens.SignInScreen
+import com.jaredforsyth.kidspictures.ui.theme.KidsPicturesTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

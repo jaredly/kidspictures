@@ -1,6 +1,6 @@
-package com.kidspictures.app.data.api
+package com.jaredforsyth.kidspictures.data.api
 
-import com.kidspictures.app.data.models.*
+import com.jaredforsyth.kidspictures.data.models.*
 import retrofit2.Response
 import retrofit2.http.*
 

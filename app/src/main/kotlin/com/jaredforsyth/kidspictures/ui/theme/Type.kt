@@ -1,4 +1,4 @@
-package com.kidspictures.app.ui.theme
+package com.jaredforsyth.kidspictures.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

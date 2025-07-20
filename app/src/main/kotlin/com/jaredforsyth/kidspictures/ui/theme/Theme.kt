@@ -1,4 +1,4 @@
-package com.kidspictures.app.ui.theme
+package com.jaredforsyth.kidspictures.ui.theme
 
 import android.app.Activity
 import android.os.Build

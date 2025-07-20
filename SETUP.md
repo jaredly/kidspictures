@@ -52,7 +52,7 @@
    - Select "Android" as application type
    - Enter these details:
      - Name: "Kids Pictures Android"
-     - Package name: `com.kidspictures.app`
+     - Package name: `com.jaredforsyth.kidspictures`
      - SHA-1 certificate fingerprint: (see below)
 
 ### Step 3: Get SHA-1 Fingerprint
@@ -72,7 +72,7 @@ Copy the SHA-1 fingerprint and paste it in the Android OAuth client configuratio
 ### Step 4: Update App Configuration
 
 1. **Add Web Client ID to GoogleAuthManager**
-   - Open `app/src/main/kotlin/com/kidspictures/app/data/auth/GoogleAuthManager.kt`
+   - Open `app/src/main/kotlin/com/jaredforsyth/kidspictures/data/auth/GoogleAuthManager.kt`
    - Replace `"YOUR_WEB_CLIENT_ID"` with your actual Web OAuth Client ID from Step 2.3
 
 ### Step 5: Testing

@@ -1,4 +1,4 @@
-package com.kidspictures.app.ui.screens
+package com.jaredforsyth.kidspictures.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,9 +15,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.kidspictures.app.ui.theme.*
-import com.kidspictures.app.ui.viewmodel.PickerViewModel
-import com.kidspictures.app.ui.viewmodel.PickerViewModelFactory
+import com.jaredforsyth.kidspictures.ui.theme.*
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 
 @Composable
 fun SignInScreen(

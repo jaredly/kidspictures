@@ -1,4 +1,4 @@
-package com.kidspictures.app
+package com.jaredforsyth.kidspictures
 
 import android.app.Application
 

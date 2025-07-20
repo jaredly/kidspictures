@@ -50,7 +50,7 @@ Before building and running the app, you'll need:
 2. **Android OAuth Client** (for Android app):
    - Create another OAuth client ID
    - Select "Android"
-   - Package name: `com.kidspictures.app`
+   - Package name: `com.jaredforsyth.kidspictures`
    - Add your SHA-1 fingerprint:
      ```bash
      keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
@@ -58,7 +58,7 @@ Before building and running the app, you'll need:
 
 ### 3. Configure the App
 
-1. Open `app/src/main/kotlin/com/kidspictures/app/data/auth/GoogleAuthManager.kt`
+1. Open `app/src/main/kotlin/com/jaredforsyth/kidspictures/data/auth/GoogleAuthManager.kt`
 2. Replace `"YOUR_WEB_CLIENT_ID"` with your actual Web OAuth Client ID
 3. Build and run the app
 
@@ -66,7 +66,7 @@ Before building and running the app, you'll need:
 
 ```
 app/
-├── src/main/kotlin/com/kidspictures/app/
+├── src/main/kotlin/com/jaredforsyth/kidspictures/
 │   ├── data/
 │   │   ├── api/               # Google Photos Picker API service
 │   │   ├── auth/              # Google authentication

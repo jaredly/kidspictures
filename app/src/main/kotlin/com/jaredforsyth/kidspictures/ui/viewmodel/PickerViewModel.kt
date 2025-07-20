@@ -1,14 +1,14 @@
-package com.kidspictures.app.ui.viewmodel
+package com.jaredforsyth.kidspictures.ui.viewmodel
 
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.kidspictures.app.data.auth.GoogleAuthManager
-import com.kidspictures.app.data.models.PickedMediaItem
-import com.kidspictures.app.data.models.PickerSession
-import com.kidspictures.app.data.repository.PhotosPickerRepository
+import com.jaredforsyth.kidspictures.data.auth.GoogleAuthManager
+import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
+import com.jaredforsyth.kidspictures.data.models.PickerSession
+import com.jaredforsyth.kidspictures.data.repository.PhotosPickerRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

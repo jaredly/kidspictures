@@ -1,4 +1,4 @@
-package com.kidspictures.app.data.models
+package com.jaredforsyth.kidspictures.data.models
 
 import android.net.Uri
 import android.os.Parcelable

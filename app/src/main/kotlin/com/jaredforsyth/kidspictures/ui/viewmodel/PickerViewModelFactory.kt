@@ -1,4 +1,4 @@
-package com.kidspictures.app.ui.viewmodel
+package com.jaredforsyth.kidspictures.ui.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.ViewModel

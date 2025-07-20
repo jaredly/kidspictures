@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.kidspictures.app"
+    namespace = "com.jaredforsyth.kidspictures"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.kidspictures.app"
+        applicationId = "com.jaredforsyth.kidspictures"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

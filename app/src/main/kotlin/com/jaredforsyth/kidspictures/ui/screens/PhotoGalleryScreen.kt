@@ -1,4 +1,4 @@
-package com.kidspictures.app.ui.screens
+package com.jaredforsyth.kidspictures.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,10 +29,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.kidspictures.app.data.models.PickedMediaItem
-import com.kidspictures.app.ui.theme.*
-import com.kidspictures.app.ui.viewmodel.PickerViewModel
-import com.kidspictures.app.ui.viewmodel.PickerViewModelFactory
+import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
+import com.jaredforsyth.kidspictures.ui.theme.*
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
