@@ -17,11 +17,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kidspictures.app.ui.theme.*
 import com.kidspictures.app.ui.viewmodel.PickerViewModel
+import com.kidspictures.app.ui.viewmodel.PickerViewModelFactory
 
 @Composable
 fun SignInScreen(
     onSignInSuccess: () -> Unit,
-    pickerViewModel: PickerViewModel = viewModel()
+    pickerViewModel: PickerViewModel = viewModel(factory = PickerViewModelFactory(LocalContext.current))
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
 

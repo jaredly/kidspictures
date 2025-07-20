@@ -11,7 +11,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,12 +32,13 @@ import coil.compose.AsyncImage
 import com.kidspictures.app.data.models.PickedMediaItem
 import com.kidspictures.app.ui.theme.*
 import com.kidspictures.app.ui.viewmodel.PickerViewModel
+import com.kidspictures.app.ui.viewmodel.PickerViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoGalleryScreen(
     onBackToSelection: () -> Unit,
-    pickerViewModel: PickerViewModel = viewModel()
+    pickerViewModel: PickerViewModel = viewModel(factory = PickerViewModelFactory(LocalContext.current))
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
@@ -58,7 +59,7 @@ fun PhotoGalleryScreen(
                         onBackToSelection()
                     }) {
                         Icon(
-                            Icons.Default.ArrowBack,
+                            Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )
