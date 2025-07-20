@@ -18,10 +18,10 @@ interface GooglePhotosPickerApiService {
         @Path("sessionId") sessionId: String
     ): Response<SessionStatusResponse>
 
-    @GET("v1/sessions/{sessionId}/mediaItems")
+    @GET("v1/mediaItems")
     suspend fun listMediaItems(
         @Header("Authorization") authorization: String,
-        @Path("sessionId") sessionId: String,
+        @Query("sessionId") sessionId: String,
         @Query("pageSize") pageSize: Int = 50,
         @Query("pageToken") pageToken: String? = null
     ): Response<ListMediaItemsResponse>

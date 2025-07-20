@@ -9,6 +9,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -16,6 +18,8 @@ import com.jaredforsyth.kidspictures.ui.screens.PhotoGalleryScreen
 import com.jaredforsyth.kidspictures.ui.screens.PickerLaunchScreen
 import com.jaredforsyth.kidspictures.ui.screens.SignInScreen
 import com.jaredforsyth.kidspictures.ui.theme.KidsPicturesTheme
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
+import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +57,12 @@ fun KidsPicturesApp() {
         }
 
         composable("picker_launch") {
+            val pickerViewModel: PickerViewModel = viewModel(
+                viewModelStoreOwner = navController.getBackStackEntry("picker_launch"),
+                factory = PickerViewModelFactory(LocalContext.current)
+            )
             PickerLaunchScreen(
+                pickerViewModel = pickerViewModel,
                 onPhotosSelected = {
                     navController.navigate("photo_gallery")
                 },
@@ -66,7 +75,12 @@ fun KidsPicturesApp() {
         }
 
         composable("photo_gallery") {
+            val pickerViewModel: PickerViewModel = viewModel(
+                viewModelStoreOwner = navController.getBackStackEntry("picker_launch"),
+                factory = PickerViewModelFactory(LocalContext.current)
+            )
             PhotoGalleryScreen(
+                pickerViewModel = pickerViewModel,
                 onBackToSelection = {
                     navController.popBackStack()
                 }

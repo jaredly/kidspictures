@@ -203,6 +203,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             val result = repository.getSelectedMediaItems(accessToken, session.id)
             result.fold(
                 onSuccess = { mediaItems ->
+                    println("✅ Get Media Items worked! ${mediaItems.size}")
                     _pickerState.value = _pickerState.value.copy(
                         isPolling = false,
                         selectedMediaItems = mediaItems

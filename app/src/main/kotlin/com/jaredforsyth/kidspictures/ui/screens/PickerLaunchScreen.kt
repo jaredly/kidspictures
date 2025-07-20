@@ -14,17 +14,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jaredforsyth.kidspictures.ui.theme.*
 import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
-import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PickerLaunchScreen(
+    pickerViewModel: PickerViewModel,
     onPhotosSelected: () -> Unit,
-    onSignOut: () -> Unit,
-    pickerViewModel: PickerViewModel = viewModel(factory = PickerViewModelFactory(LocalContext.current))
+    onSignOut: () -> Unit
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     val context = LocalContext.current

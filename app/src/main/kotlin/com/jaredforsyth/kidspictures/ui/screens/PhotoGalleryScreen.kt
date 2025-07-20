@@ -27,18 +27,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
 import com.jaredforsyth.kidspictures.ui.theme.*
 import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
-import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoGalleryScreen(
-    onBackToSelection: () -> Unit,
-    pickerViewModel: PickerViewModel = viewModel(factory = PickerViewModelFactory(LocalContext.current))
+    pickerViewModel: PickerViewModel,
+    onBackToSelection: () -> Unit
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
