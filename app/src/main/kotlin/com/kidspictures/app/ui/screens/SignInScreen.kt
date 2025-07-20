@@ -28,7 +28,7 @@ import com.kidspictures.app.ui.viewmodel.AuthViewModel
 @Composable
 fun SignInScreen(
     onSignInSuccess: () -> Unit,
-    authViewModel: AuthViewModel = viewModel { AuthViewModel(LocalContext.current) }
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val authState by authViewModel.authState.collectAsState()
 

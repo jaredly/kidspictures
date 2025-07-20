@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 fun AlbumSelectionScreen(
     onAlbumSelected: (String) -> Unit,
     onSignOut: () -> Unit,
-    authViewModel: AuthViewModel = viewModel { AuthViewModel(LocalContext.current) },
+    authViewModel: AuthViewModel = viewModel(),
     albumViewModel: AlbumViewModel = viewModel()
 ) {
     val albumState by albumViewModel.albumState.collectAsState()
@@ -111,6 +111,7 @@ fun AlbumSelectionScreen(
                 }
 
                 albumState.error != null -> {
+                    val errorMessage = albumState.error
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -122,7 +123,7 @@ fun AlbumSelectionScreen(
                             colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
                         ) {
                             Text(
-                                text = albumState.error,
+                                text = errorMessage ?: "Unknown error",
                                 modifier = Modifier.padding(16.dp),
                                 color = Color.Red,
                                 textAlign = TextAlign.Center

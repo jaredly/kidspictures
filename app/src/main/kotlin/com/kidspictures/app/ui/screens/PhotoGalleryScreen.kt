@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,8 +41,8 @@ import kotlinx.coroutines.launch
 fun PhotoGalleryScreen(
     albumId: String,
     onBackToAlbums: () -> Unit,
-    authViewModel: AuthViewModel = viewModel { AuthViewModel(LocalContext.current) },
-    photosViewModel: PhotosViewModel = viewModel { PhotosViewModel(LocalContext.current) }
+    authViewModel: AuthViewModel = viewModel(),
+    photosViewModel: PhotosViewModel = viewModel()
 ) {
     val photosState by photosViewModel.photosState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -108,6 +109,7 @@ fun PhotoGalleryScreen(
                 }
 
                 photosState.error != null -> {
+                    val errorMessage = photosState.error
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -118,12 +120,12 @@ fun PhotoGalleryScreen(
                                 .padding(16.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
                         ) {
-                            Text(
-                                text = photosState.error,
-                                modifier = Modifier.padding(16.dp),
-                                color = Color.Red,
-                                textAlign = TextAlign.Center
-                            )
+                                                         Text(
+                                 text = errorMessage ?: "Unknown error",
+                                 modifier = Modifier.padding(16.dp),
+                                 color = Color.Red,
+                                 textAlign = TextAlign.Center
+                             )
                         }
                     }
                 }
