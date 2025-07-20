@@ -6,7 +6,7 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 data class PickerSession(
     val id: String,
-    val pickerUri: String,
+    val pickerUri: String?, // Allow null - API doesn't return this in status calls
     val mediaItemsSet: Boolean = false
 ) : Parcelable
 
@@ -47,7 +47,7 @@ data class CreateSessionResponse(
 
 data class SessionStatusResponse(
     val id: String,
-    val pickerUri: String,
+    val pickerUri: String?, // Null in status responses
     val mediaItemsSet: Boolean
 )
 

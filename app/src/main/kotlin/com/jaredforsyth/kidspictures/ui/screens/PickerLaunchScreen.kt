@@ -84,7 +84,7 @@ fun PickerLaunchScreen(
                     }
 
                     pickerState.isPolling -> {
-                        LoadingContent("Waiting for your selection...")
+                        LoadingContent("Waiting for your selection...\n\n💡 After selecting photos in Google Photos, return to this app!")
                     }
 
                     pickerState.pickerUri != null -> {

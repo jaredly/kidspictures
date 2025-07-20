@@ -54,7 +54,7 @@ class PhotosPickerRepository {
                     Result.success(
                         PickerSession(
                             id = body.id,
-                            pickerUri = body.pickerUri,
+                            pickerUri = body.pickerUri, // Can be null in status responses
                             mediaItemsSet = body.mediaItemsSet
                         )
                     )
