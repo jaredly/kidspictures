@@ -7,7 +7,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class GoogleAuthManager(private val context: Context) {
 
@@ -83,13 +85,35 @@ class GoogleAuthManager(private val context: Context) {
         }
     }
 
-    suspend fun getAccessToken(): String? {
-        val account = getCurrentUser()
+            suspend fun getAccessToken(): String? {
+        val account = getCurrentUser() ?: return null
+
         return try {
-            account?.idToken
+            // Use GoogleAuthUtil to get a fresh access token with the required scope
+            val scopes = "oauth2:https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
+
+            // Run the blocking call on IO dispatcher to avoid main thread deadlock
+            withContext(Dispatchers.IO) {
+                com.google.android.gms.auth.GoogleAuthUtil.getToken(
+                    context,
+                    account.account!!,
+                    scopes
+                )
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+
+            // Provide helpful error for token issues
+            throw IllegalStateException(
+                "🔑 Access Token Error\n\n" +
+                "Failed to get access token for Google Photos Picker API.\n\n" +
+                "This might mean:\n" +
+                "✅ 1. User needs to sign in again\n" +
+                "✅ 2. Google Photos Picker API scope needs reauthorization\n" +
+                "✅ 3. Network connectivity issue\n\n" +
+                "Try signing out and signing in again.\n\n" +
+                "Original error: ${e.message}"
+            )
         }
     }
 }
