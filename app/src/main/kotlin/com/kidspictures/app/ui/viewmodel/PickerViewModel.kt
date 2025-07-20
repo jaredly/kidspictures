@@ -62,10 +62,16 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
+                val errorMessage = when {
+                    e.message?.contains("SETUP REQUIRED") == true -> e.message
+                    e.message?.contains("Configuration Error") == true -> e.message
+                    else -> "Sign in failed: ${e.message}"
+                }
+
                 _pickerState.value = _pickerState.value.copy(
                     isLoading = false,
                     isSignedIn = false,
-                    error = "Sign in error: ${e.message}"
+                    error = errorMessage
                 )
             }
         }

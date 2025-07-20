@@ -11,10 +11,28 @@ import kotlinx.coroutines.tasks.await
 
 class GoogleAuthManager(private val context: Context) {
 
-    private val googleSignInClient: GoogleSignInClient by lazy {
+        private val googleSignInClient: GoogleSignInClient by lazy {
+        // TODO: Replace this with your actual Web OAuth Client ID from Google Cloud Console
+        // Get it from: https://console.cloud.google.com/apis/credentials
+        // Use the "Web application" type client ID (not Android)
+        val webClientId = "YOUR_WEB_CLIENT_ID"
+
+        if (webClientId == "YOUR_WEB_CLIENT_ID") {
+            throw IllegalStateException(
+                "❌ SETUP REQUIRED: Please replace 'YOUR_WEB_CLIENT_ID' in GoogleAuthManager.kt with your actual Web OAuth Client ID from Google Cloud Console.\n" +
+                "📋 Steps:\n" +
+                "1. Go to https://console.cloud.google.com/apis/credentials\n" +
+                "2. Find your Web application OAuth client\n" +
+                "3. Copy the Client ID\n" +
+                "4. Replace 'YOUR_WEB_CLIENT_ID' in GoogleAuthManager.kt\n" +
+                "5. Rebuild the app\n\n" +
+                "See SETUP.md for detailed instructions."
+            )
+        }
+
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestIdToken("YOUR_WEB_CLIENT_ID") // Replace with your OAuth client ID
+            .requestIdToken(webClientId)
             .requestScopes(
                 Scope("https://www.googleapis.com/auth/photospicker.mediaitems.readonly")
             )
@@ -33,7 +51,23 @@ class GoogleAuthManager(private val context: Context) {
             task.await()
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+
+            // Provide helpful error messages for common issues
+            when (e.message?.contains("10")) {
+                true -> {
+                    throw IllegalStateException(
+                        "🔧 Google Sign-In Configuration Error (Status 10 - DEVELOPER_ERROR)\n\n" +
+                        "This usually means:\n" +
+                        "✅ 1. Check Web Client ID is correct in GoogleAuthManager.kt\n" +
+                        "✅ 2. Verify Android OAuth client SHA-1 fingerprint matches:\n" +
+                        "   Run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android\n" +
+                        "✅ 3. Ensure package name is 'com.kidspictures.app' in Google Cloud Console\n" +
+                        "✅ 4. Confirm Google Photos Picker API is enabled\n\n" +
+                        "See SETUP.md for detailed troubleshooting."
+                    )
+                }
+                else -> null
+            }
         }
     }
 
