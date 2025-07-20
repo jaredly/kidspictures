@@ -1,22 +1,11 @@
 package com.kidspictures.app.data.models
 
+import android.net.Uri
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
-data class Album(
-    val id: String,
-    val title: String,
-    val productUrl: String?,
-    val mediaItemsCount: Long,
-    val coverPhotoBaseUrl: String?
-) : Parcelable
-
-@Parcelize
-data class MediaItem(
-    val id: String,
-    val productUrl: String,
-    val baseUrl: String,
-    val mimeType: String,
-    val filename: String
+data class SelectedPhoto(
+    val uri: Uri,
+    val displayName: String = "Photo"
 ) : Parcelable

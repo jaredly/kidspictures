@@ -21,7 +21,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,42 +29,34 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.kidspictures.app.R
+import com.kidspictures.app.data.models.PickedMediaItem
 import com.kidspictures.app.ui.theme.*
-import com.kidspictures.app.ui.viewmodel.AuthViewModel
-import com.kidspictures.app.ui.viewmodel.PhotosViewModel
-import kotlinx.coroutines.launch
+import com.kidspictures.app.ui.viewmodel.PickerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoGalleryScreen(
-    albumId: String,
-    onBackToAlbums: () -> Unit,
-    authViewModel: AuthViewModel = viewModel(),
-    photosViewModel: PhotosViewModel = viewModel()
+    onBackToSelection: () -> Unit,
+    pickerViewModel: PickerViewModel = viewModel()
 ) {
-    val photosState by photosViewModel.photosState.collectAsState()
-    val scope = rememberCoroutineScope()
+    val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
-
-    LaunchedEffect(albumId) {
-        authViewModel.getAccessToken()?.let { token ->
-            photosViewModel.loadPhotosFromAlbum(token, albumId)
-        }
-    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "📸 Photos",
+                        text = "📸 Selected Photos (${pickerState.selectedMediaItems.size})",
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackToAlbums) {
+                    IconButton(onClick = {
+                        pickerViewModel.clearSelection()
+                        onBackToSelection()
+                    }) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Back",
@@ -86,7 +77,7 @@ fun PhotoGalleryScreen(
             color = LightBackground
         ) {
             when {
-                photosState.isLoading -> {
+                pickerState.selectedMediaItems.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -94,153 +85,36 @@ fun PhotoGalleryScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp),
-                                color = FunBlue
+                            Text(
+                                text = "📷",
+                                fontSize = 48.sp
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = stringResource(R.string.loading),
-                                fontSize = 16.sp,
-                                color = Color.Gray
+                                text = "No photos selected from Google Photos",
+                                fontSize = 18.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
                             )
-                        }
-                    }
-                }
-
-                photosState.error != null -> {
-                    val errorMessage = photosState.error
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
-                        ) {
-                                                         Text(
-                                 text = errorMessage ?: "Unknown error",
-                                 modifier = Modifier.padding(16.dp),
-                                 color = Color.Red,
-                                 textAlign = TextAlign.Center
-                             )
-                        }
-                    }
-                }
-
-                photosState.mediaItems.isNotEmpty() && !photosState.isDownloadComplete -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (photosState.downloadProgress == 0) {
-                            // Show download prompt
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = onBackToSelection,
+                                colors = ButtonDefaults.buttonColors(containerColor = FunBlue)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "🎉 Found ${photosState.mediaItems.size} photos!",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = FunBlue,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        text = "Ready to download photos for offline viewing?",
-                                        fontSize = 16.sp,
-                                        color = Color.Gray,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    Button(
-                                        onClick = {
-                                            scope.launch {
-                                                photosViewModel.downloadPhotos()
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(56.dp),
-                                        shape = RoundedCornerShape(28.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = FunGreen,
-                                            contentColor = Color.White
-                                        )
-                                    ) {
-                                        Text(
-                                            text = "📥 Download Photos",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            // Show download progress
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.downloading_photos),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = FunBlue
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    LinearProgressIndicator(
-                                        progress = photosState.downloadProgress / 100f,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp),
-                                        color = FunGreen,
-                                        trackColor = Color.Gray.copy(alpha = 0.3f)
-                                    )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Text(
-                                        text = "${photosState.downloadProgress}%",
-                                        fontSize = 16.sp,
-                                        color = FunGreen,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Text(
+                                    text = "Select Photos",
+                                    color = Color.White
+                                )
                             }
                         }
                     }
                 }
 
-                photosState.isDownloadComplete && photosState.downloadedPhotos.isNotEmpty() -> {
+                else -> {
                     Column(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Success message
+                        // Instructions
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -248,7 +122,7 @@ fun PhotoGalleryScreen(
                             colors = CardDefaults.cardColors(containerColor = FunGreen.copy(alpha = 0.1f))
                         ) {
                             Text(
-                                text = "🎉 " + stringResource(R.string.ready_to_view),
+                                text = "👆 Tap any photo to view it full screen! 🌤️ These are from your Google Photos cloud!",
                                 modifier = Modifier.padding(12.dp),
                                 fontSize = 14.sp,
                                 color = FunGreen,
@@ -266,10 +140,10 @@ fun PhotoGalleryScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            itemsIndexed(photosState.downloadedPhotos) { index, photoPath ->
+                            itemsIndexed(pickerState.selectedMediaItems) { index, mediaItem ->
                                 AsyncImage(
-                                    model = photoPath,
-                                    contentDescription = "Photo ${index + 1}",
+                                    model = "${mediaItem.baseUrl}=w300-h300-c", // Use Google Photos sizing
+                                    contentDescription = mediaItem.filename,
                                     modifier = Modifier
                                         .aspectRatio(1f)
                                         .clip(RoundedCornerShape(8.dp))
@@ -282,20 +156,6 @@ fun PhotoGalleryScreen(
                         }
                     }
                 }
-
-                else -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No photos to display",
-                            fontSize = 18.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
             }
         }
     }
@@ -303,7 +163,7 @@ fun PhotoGalleryScreen(
     // Full-screen photo viewer
     if (selectedPhotoIndex >= 0) {
         FullScreenPhotoViewer(
-            photos = photosState.downloadedPhotos,
+            photos = pickerState.selectedMediaItems,
             initialIndex = selectedPhotoIndex,
             onDismiss = { selectedPhotoIndex = -1 }
         )
@@ -313,7 +173,7 @@ fun PhotoGalleryScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullScreenPhotoViewer(
-    photos: List<String>,
+    photos: List<PickedMediaItem>,
     initialIndex: Int,
     onDismiss: () -> Unit
 ) {
@@ -338,8 +198,8 @@ fun FullScreenPhotoViewer(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 AsyncImage(
-                    model = photos[page],
-                    contentDescription = "Photo ${page + 1}",
+                    model = "${photos[page].baseUrl}=w1024-h1024", // High quality for full screen
+                    contentDescription = photos[page].filename,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
@@ -360,7 +220,7 @@ fun FullScreenPhotoViewer(
                 )
             }
 
-            // Page indicator
+            // Photo info
             Card(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -369,12 +229,21 @@ fun FullScreenPhotoViewer(
                     containerColor = Color.Black.copy(alpha = 0.7f)
                 )
             ) {
-                Text(
-                    text = "${pagerState.currentPage + 1} / ${photos.size}",
+                Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = Color.White,
-                    fontSize = 14.sp
-                )
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "${pagerState.currentPage + 1} / ${photos.size}",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = photos[pagerState.currentPage].filename,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp
+                    )
+                }
             }
         }
     }

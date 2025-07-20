@@ -5,17 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.kidspictures.app.ui.screens.AlbumSelectionScreen
 import com.kidspictures.app.ui.screens.PhotoGalleryScreen
+import com.kidspictures.app.ui.screens.PickerLaunchScreen
 import com.kidspictures.app.ui.screens.SignInScreen
 import com.kidspictures.app.ui.theme.KidsPicturesTheme
 
@@ -47,17 +45,17 @@ fun KidsPicturesApp() {
         composable("sign_in") {
             SignInScreen(
                 onSignInSuccess = {
-                    navController.navigate("album_selection") {
+                    navController.navigate("picker_launch") {
                         popUpTo("sign_in") { inclusive = true }
                     }
                 }
             )
         }
 
-        composable("album_selection") {
-            AlbumSelectionScreen(
-                onAlbumSelected = { albumId ->
-                    navController.navigate("photo_gallery/$albumId")
+        composable("picker_launch") {
+            PickerLaunchScreen(
+                onPhotosSelected = {
+                    navController.navigate("photo_gallery")
                 },
                 onSignOut = {
                     navController.navigate("sign_in") {
@@ -67,11 +65,9 @@ fun KidsPicturesApp() {
             )
         }
 
-        composable("photo_gallery/{albumId}") { backStackEntry ->
-            val albumId = backStackEntry.arguments?.getString("albumId") ?: ""
+        composable("photo_gallery") {
             PhotoGalleryScreen(
-                albumId = albumId,
-                onBackToAlbums = {
+                onBackToSelection = {
                     navController.popBackStack()
                 }
             )

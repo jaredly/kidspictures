@@ -1,10 +1,11 @@
-# Setup Guide for Kids Pictures App
+# Setup Guide for Kids Pictures App (Google Photos Picker API)
 
 ## Quick Setup Checklist
 
 - [ ] Google Cloud Project created
-- [ ] Photos Library API enabled
+- [ ] Google Photos Picker API enabled
 - [ ] OAuth 2.0 credentials configured
+- [ ] Web Client ID added to app
 - [ ] SHA-1 fingerprint added
 - [ ] App built and tested
 
@@ -17,9 +18,9 @@
    - Click "New Project" or select existing project
    - Note your Project ID
 
-2. **Enable Photos Library API**
+2. **Enable Google Photos Picker API**
    - In the console, go to "APIs & Services" > "Library"
-   - Search for "Photos Library API"
+   - Search for "Google Photos Picker API"
    - Click on it and press "Enable"
 
 ### Step 2: Create OAuth 2.0 Credentials
@@ -35,10 +36,19 @@
      - App name: "Kids Pictures"
      - User support email: your email
      - Developer contact: your email
-   - Add scopes: `auth/photoslibrary.readonly`
+   - Add scopes: `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`
    - Save and continue
 
-3. **Create Android OAuth Client**
+3. **Create Web OAuth Client** (for ID token)
+   - Select "Web application" as application type
+   - Enter these details:
+     - Name: "Kids Pictures Web"
+     - Authorized JavaScript origins: (leave empty for mobile)
+     - Authorized redirect URIs: (leave empty for mobile)
+   - **COPY THE CLIENT ID** - you'll need this for the app
+
+4. **Create Android OAuth Client**
+   - Click "Create Credentials" > "OAuth client ID" again
    - Select "Android" as application type
    - Enter these details:
      - Name: "Kids Pictures Android"
@@ -57,63 +67,73 @@ For **release builds**, use your release keystore:
 keytool -list -v -keystore your-release-key.keystore -alias your-key-alias
 ```
 
-Copy the SHA-1 fingerprint and paste it in the OAuth client configuration.
+Copy the SHA-1 fingerprint and paste it in the Android OAuth client configuration.
 
-### Step 4: Alternative Configuration (Without google-services.json)
+### Step 4: Update App Configuration
 
-If you don't want to use Firebase, you can manually configure the OAuth client:
-
-1. **Add OAuth Client ID to strings.xml**
-   ```xml
-   <string name="default_web_client_id">YOUR_OAUTH_CLIENT_ID_HERE</string>
-   ```
-
-2. **Update GoogleAuthManager** to use the client ID:
-   ```kotlin
-   private val googleSignInClient: GoogleSignInClient by lazy {
-       val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-           .requestIdToken(context.getString(R.string.default_web_client_id))
-           .requestEmail()
-           .requestScopes(Scope("https://www.googleapis.com/auth/photoslibrary.readonly"))
-           .build()
-
-       GoogleSignIn.getClient(context, gso)
-   }
-   ```
+1. **Add Web Client ID to GoogleAuthManager**
+   - Open `app/src/main/kotlin/com/kidspictures/app/data/auth/GoogleAuthManager.kt`
+   - Replace `"YOUR_WEB_CLIENT_ID"` with your actual Web OAuth Client ID from Step 2.3
 
 ### Step 5: Testing
 
 1. **Build the app** in Android Studio
 2. **Install on device or emulator**
 3. **Test sign-in flow**
-4. **Verify album loading**
-5. **Test photo download and viewing**
+4. **Test picker session creation**
+5. **Test photo selection and viewing**
+
+## How the Google Photos Picker API Works
+
+1. **User signs in** with Google account
+2. **App creates a picker session** via API call
+3. **User gets redirected** to Google Photos via picker URI
+4. **User selects photos/albums** in Google Photos
+5. **User returns to your app**
+6. **App polls session** until selection is complete
+7. **App retrieves selected media** via API
+
+## API Flow Details
+
+### Authentication
+- Uses Google Sign-In with scope: `photospicker.mediaitems.readonly`
+- Requires both Android and Web OAuth clients
+
+### Session Management
+- Create session: `POST https://photospicker.googleapis.com/v1/sessions`
+- Check status: `GET https://photospicker.googleapis.com/v1/sessions/{sessionId}`
+- List media: `GET https://photospicker.googleapis.com/v1/sessions/{sessionId}/mediaItems`
+
+### Photo Access
+- Selected photos include cloud photos not on device
+- Can select entire albums or individual photos
+- Photos are served from Google's CDN with resizing options
 
 ## Troubleshooting
 
 ### Common Issues
 
 **"Sign in failed" error:**
-- Verify SHA-1 fingerprint is correct
-- Check OAuth client ID is properly configured
-- Ensure Photos Library API is enabled
+- Verify Web Client ID is correct in GoogleAuthManager
+- Check Android OAuth client SHA-1 fingerprint
+- Ensure Google Photos Picker API is enabled
 
-**"No albums found":**
-- Make sure the Google account has photo albums
-- Check API quotas haven't been exceeded
-- Verify app has proper scopes
+**"Failed to create session":**
+- Check if user has valid access token
+- Verify API is enabled and has quota
+- Check OAuth scopes include `photospicker.mediaitems.readonly`
 
-**Photos won't download:**
-- Check internet connection
-- Verify device has sufficient storage
-- Check Photos Library API quotas
+**"No photos selected" after picker:**
+- Ensure polling is working correctly
+- Check network connectivity
+- Verify session hasn't expired
 
 ### Testing with Different Accounts
 
 To test with multiple Google accounts:
-1. Use different devices/emulators
-2. Clear app data between tests
-3. Sign out completely before switching accounts
+1. Clear app data between tests
+2. Sign out completely before switching accounts
+3. Use different devices/emulators for different accounts
 
 ## Production Deployment
 
@@ -121,21 +141,36 @@ For production release:
 
 1. **Create release keystore**
 2. **Generate release SHA-1 fingerprint**
-3. **Add release SHA-1 to OAuth client**
+3. **Add release SHA-1 to Android OAuth client**
 4. **Test with release build**
-5. **Update app version in build.gradle**
+5. **Submit for app verification** (required for external users)
 
-## API Quotas
+## API Quotas & Limits
 
-Google Photos Library API has these limits:
-- 10,000 requests per day per project
-- 10 queries per second per user
+Google Photos Picker API has these limits:
+- Sessions expire after 1 hour
+- Rate limits apply to API calls
+- Max photos per session: varies by user account
 
 For high-usage scenarios, request quota increases from Google Cloud Console.
 
-## Privacy Considerations
+## Privacy & Security
 
-- App only requests read-only access to photos
-- Photos are cached locally, not uploaded anywhere
-- Clear cache when uninstalling for complete privacy
-- Consider adding cache clearing option in settings
+- App only accesses photos user explicitly selects
+- No persistent access to user's photo library
+- Selection is temporary and session-based
+- Complies with Google Photos privacy policies
+
+## Key Differences from Library API
+
+✅ **Picker API Advantages:**
+- Access to ALL user photos (not just app-created)
+- Can select entire albums
+- User controls exactly what to share
+- No complex permission management
+
+❌ **Picker API Limitations:**
+- Requires network connection
+- More complex setup
+- Session-based (temporary access)
+- Requires user interaction each time

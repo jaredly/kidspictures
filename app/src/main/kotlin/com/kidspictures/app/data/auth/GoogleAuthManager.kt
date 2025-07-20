@@ -2,8 +2,6 @@ package com.kidspictures.app.data.auth
 
 import android.content.Context
 import android.content.Intent
-import androidx.activity.result.ActivityResultLauncher
-import kotlinx.coroutines.tasks.await
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -13,11 +11,12 @@ import kotlinx.coroutines.tasks.await
 
 class GoogleAuthManager(private val context: Context) {
 
-        private val googleSignInClient: GoogleSignInClient by lazy {
+    private val googleSignInClient: GoogleSignInClient by lazy {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
+            .requestIdToken("YOUR_WEB_CLIENT_ID") // Replace with your OAuth client ID
             .requestScopes(
-                Scope("https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata")
+                Scope("https://www.googleapis.com/auth/photospicker.mediaitems.readonly")
             )
             .build()
 
@@ -50,11 +49,9 @@ class GoogleAuthManager(private val context: Context) {
         }
     }
 
-            suspend fun getAccessToken(): String? {
+    suspend fun getAccessToken(): String? {
         val account = getCurrentUser()
         return try {
-            // Note: This is a simplified implementation
-            // In a real app, you'd need to implement proper token refresh logic
             account?.idToken
         } catch (e: Exception) {
             e.printStackTrace()

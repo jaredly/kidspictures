@@ -70,12 +70,17 @@ dependencies {
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
-    // Google Sign-In
+        // Google Sign-In for OAuth
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Google Photos Library API
-    implementation("com.google.photos.library:google-photos-library-client:1.7.3")
+    // HTTP client for API calls
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // Activity for photo picker
+    implementation("androidx.activity:activity-ktx:1.8.2")
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.5.0")
