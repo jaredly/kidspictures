@@ -141,8 +141,8 @@ fun PhotoGalleryScreen(
                         ) {
                             itemsIndexed(pickerState.selectedMediaItems) { index, mediaItem ->
                                 AsyncImage(
-                                    model = "${mediaItem.baseUrl}=w300-h300-c", // Use Google Photos sizing
-                                    contentDescription = mediaItem.filename,
+                                    model = "${mediaItem.mediaFile.baseUrl}=w300-h300-c", // Use Google Photos sizing
+                                    contentDescription = mediaItem.mediaFile.filename,
                                     modifier = Modifier
                                         .aspectRatio(1f)
                                         .clip(RoundedCornerShape(8.dp))
@@ -197,8 +197,8 @@ fun FullScreenPhotoViewer(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 AsyncImage(
-                    model = "${photos[page].baseUrl}=w1024-h1024", // High quality for full screen
-                    contentDescription = photos[page].filename,
+                    model = "${photos[page].mediaFile.baseUrl}=w1024-h1024", // High quality for full screen
+                    contentDescription = photos[page].mediaFile.filename,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
@@ -238,7 +238,7 @@ fun FullScreenPhotoViewer(
                         fontSize = 14.sp
                     )
                     Text(
-                        text = photos[pagerState.currentPage].filename,
+                        text = photos[pagerState.currentPage].mediaFile.filename,
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )

@@ -13,17 +13,24 @@ data class PickerSession(
 @Parcelize
 data class PickedMediaItem(
     val id: String,
-    val filename: String,
-    val baseUrl: String,
-    val mimeType: String,
-    val mediaMetadata: MediaMetadata? = null
+    val createTime: String,
+    val type: String,
+    val mediaFile: MediaFile,
 ) : Parcelable
 
 @Parcelize
+data class MediaFile(
+    val baseUrl: String,
+    val filename: String,
+    val mimeType: String,
+    val mediaFileMetadata: MediaMetadata
+) : Parcelable
+
+
+@Parcelize
 data class MediaMetadata(
-    val width: String? = null,
-    val height: String? = null,
-    val creationTime: String? = null
+    val width: Int,
+    val height: Int,
 ) : Parcelable
 
 @Parcelize

@@ -204,6 +204,12 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             result.fold(
                 onSuccess = { mediaItems ->
                     println("✅ Get Media Items worked! ${mediaItems.size}")
+                    mediaItems.forEach { item ->
+                        println("📸 Photo: ${item.mediaFile.filename}")
+                        println("🔗 BaseURL: ${item.mediaFile.baseUrl}")
+                        println("🎭 MimeType: ${item.mediaFile.mimeType}")
+                        println("📊 Type: ${item.type}")
+                    }
                     _pickerState.value = _pickerState.value.copy(
                         isPolling = false,
                         selectedMediaItems = mediaItems

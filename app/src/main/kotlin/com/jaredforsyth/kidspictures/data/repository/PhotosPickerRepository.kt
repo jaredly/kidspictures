@@ -79,7 +79,7 @@ class PhotosPickerRepository {
                         pageToken = pageToken
                     )
 
-                    if (response.isSuccessful) {
+                                        if (response.isSuccessful) {
                         val body = response.body()!!
                         body.mediaItems?.let { allItems.addAll(it) }
                         pageToken = body.nextPageToken
