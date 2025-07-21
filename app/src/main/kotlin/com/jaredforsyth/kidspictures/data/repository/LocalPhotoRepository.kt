@@ -10,6 +10,8 @@ import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -63,14 +65,19 @@ class LocalPhotoRepository(private val context: Context) {
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
     ): Result<List<LocalPhoto>> {
         return try {
+            println("🔽 Starting download of ${mediaItems.size} photos")
             val localPhotos = mutableListOf<LocalPhoto>()
 
             mediaItems.forEachIndexed { index, mediaItem ->
+                println("📥 Downloading photo ${index + 1}/${mediaItems.size}: ${mediaItem.mediaFile.filename}")
                 onProgress(index + 1, mediaItems.size)
 
                 val localPhoto = downloadPhoto(mediaItem, authToken)
                 if (localPhoto != null) {
+                    println("✅ Downloaded successfully: ${localPhoto.filename}")
                     localPhotos.add(localPhoto)
+                } else {
+                    println("❌ Failed to download: ${mediaItem.mediaFile.filename}")
                 }
             }
 
@@ -84,18 +91,30 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-    private suspend fun downloadPhoto(mediaItem: PickedMediaItem, authToken: String): LocalPhoto? {
+        private suspend fun downloadPhoto(mediaItem: PickedMediaItem, authToken: String): LocalPhoto? {
         return try {
-            val url = "${mediaItem.mediaFile.baseUrl}=w1024-h1024" // High quality download
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer $authToken")
-                .build()
+            val baseUrl = mediaItem.mediaFile.baseUrl
+            if (baseUrl.isNullOrEmpty()) {
+                println("❌ No baseUrl for photo: ${mediaItem.mediaFile.filename}")
+                return null
+            }
 
-            val response = client.newCall(request).execute()
+            val url = "${baseUrl}=w1024-h1024" // High quality download
+            println("🌐 Downloading from: $url")
+
+            // Move network request to IO thread
+            val response = withContext(Dispatchers.IO) {
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $authToken")
+                    .build()
+
+                client.newCall(request).execute()
+            }
 
             if (!response.isSuccessful) {
-                println("❌ Failed to download photo: ${response.code}")
+                println("❌ Failed to download photo: ${response.code} - ${response.message}")
+                response.body?.close()
                 return null
             }
 
@@ -108,14 +127,27 @@ class LocalPhotoRepository(private val context: Context) {
                 }
             }
 
-            LocalPhoto(
+            val fileSize = localFile.length()
+            println("📂 File saved: ${localFile.absolutePath} (${fileSize} bytes)")
+
+            if (fileSize == 0L) {
+                println("❌ Downloaded file is empty!")
+                localFile.delete()
+                return null
+            }
+
+            val localPhoto = LocalPhoto(
                 id = mediaItem.id,
                 filename = mediaItem.mediaFile.filename ?: fileName,
                 localPath = localFile.absolutePath,
                 originalUrl = mediaItem.mediaFile.baseUrl ?: "",
                 mimeType = mediaItem.mediaFile.mimeType ?: "image/jpeg"
             )
+
+            println("🎯 Created LocalPhoto: ${localPhoto.filename}")
+            localPhoto
         } catch (e: Exception) {
+                println("❌ Some error idk!")
             e.printStackTrace()
             null
         }

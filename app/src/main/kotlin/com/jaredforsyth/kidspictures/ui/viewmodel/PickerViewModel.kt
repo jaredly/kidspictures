@@ -113,9 +113,20 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             val mediaItems = _pickerState.value.selectedMediaItems
             val accessToken = authManager.getAccessToken()
 
-            if (mediaItems.isEmpty() || accessToken == null) {
+            println("🔍 Download check - MediaItems: ${mediaItems.size}, AccessToken available: ${accessToken != null}")
+
+            if (mediaItems.isEmpty()) {
+                println("❌ No media items to download")
                 _pickerState.value = _pickerState.value.copy(
-                    error = "No photos selected or authentication failed"
+                    error = "No photos selected"
+                )
+                return@launch
+            }
+
+            if (accessToken == null) {
+                println("❌ No access token available")
+                _pickerState.value = _pickerState.value.copy(
+                    error = "Authentication failed - please sign in again"
                 )
                 return@launch
             }
