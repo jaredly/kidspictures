@@ -344,6 +344,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         isPolling = false,
                         selectedMediaItems = mediaItems
                     )
+
+                    // Automatically download and store photos after selection
+                    println("🔄 Auto-downloading selected photos...")
+                    downloadAndStorePhotos()
                 },
                 onFailure = { error ->
                     println("❌ Get Media Items failure: ${error.message}")
