@@ -30,6 +30,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.alpha
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
 import android.content.Intent
@@ -532,16 +533,35 @@ private fun PatchworkGrid(
         photos.shuffled().take(maxPhotos)
     ) }
 
-    // Animation state
+    // State for preloading and animation
+    var preloadedPhotos by remember { mutableStateOf<Map<Int, LocalPhoto>>(emptyMap()) }
     var animatingIndex by remember { mutableIntStateOf(-1) }
+    var hasSwapped by remember { mutableStateOf(false) }
+
     val animationProgress by animateFloatAsState(
         targetValue = if (animatingIndex >= 0) 1f else 0f,
         animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
         finishedListener = {
             animatingIndex = -1
+            hasSwapped = false
+            // Clear preloaded photo after animation
+            preloadedPhotos = preloadedPhotos - animatingIndex
         },
         label = "CardFlip"
     )
+
+    // Calculate current rotation and trigger swap at 90°
+    val currentRotation = animationProgress * 180f
+    LaunchedEffect(currentRotation, animatingIndex) {
+        if (animatingIndex >= 0 && !hasSwapped && currentRotation >= 90f) {
+            hasSwapped = true
+            preloadedPhotos[animatingIndex]?.let { newPhoto ->
+                val newDisplayedPhotos = displayedPhotos.toMutableList()
+                newDisplayedPhotos[animatingIndex] = newPhoto
+                displayedPhotos = newDisplayedPhotos
+            }
+        }
+    }
 
     // Set up the replacement callback
     LaunchedEffect(photos) {
@@ -549,49 +569,69 @@ private fun PatchworkGrid(
             val remainingPhotos = photos - displayedPhotos.toSet()
             if (remainingPhotos.isNotEmpty() && displayIndex < displayedPhotos.size) {
                 scope.launch {
-                    // Start animation
+                    // First, select and preload the new photo
+                    val newPhoto = remainingPhotos.random()
+                    preloadedPhotos = preloadedPhotos + (displayIndex to newPhoto)
+
+                    // Small delay to ensure preloading starts
+                    delay(50)
+
+                    // Start animation (swap will happen automatically at 90°)
+                    hasSwapped = false
                     animatingIndex = displayIndex
-
-                    // Wait for animation to reach midpoint, then swap photo
-                    delay(300) // Half of animation duration
-
-                    val newDisplayedPhotos = displayedPhotos.toMutableList()
-                    newDisplayedPhotos[displayIndex] = remainingPhotos.random()
-                    displayedPhotos = newDisplayedPhotos
                 }
             }
         }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(columns),
-        verticalArrangement = Arrangement.spacedBy(spacing.dp),
-        horizontalArrangement = Arrangement.spacedBy(spacing.dp),
-        modifier = Modifier.heightIn(max = availableHeight.dp)
-    ) {
-        itemsIndexed(displayedPhotos) { displayIndex, photo ->
-            val originalIndex = photos.indexOf(photo)
+    Box {
+        // Main grid
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            verticalArrangement = Arrangement.spacedBy(spacing.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.dp),
+            modifier = Modifier.heightIn(max = availableHeight.dp)
+        ) {
+            itemsIndexed(displayedPhotos) { displayIndex, photo ->
+                val originalIndex = photos.indexOf(photo)
 
-            // Calculate rotation for this specific item
-            val rotation = if (animatingIndex == displayIndex) {
-                animationProgress * 180f
-            } else {
-                0f
+                // Calculate rotation for this specific item
+                val rotation = if (animatingIndex == displayIndex) {
+                    animationProgress * 180f
+                } else {
+                    0f
+                }
+
+                // Fix the "mirrored" appearance when rotation > 90°
+                val flipScale = if (rotation > 90f) -1f else 1f
+
+                AsyncImage(
+                    model = File(photo.localPath),
+                    contentDescription = photo.filename,
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .graphicsLayer {
+                            rotationY = rotation
+                            scaleX = flipScale
+                            cameraDistance = 12f * density // Add depth to the flip
+                        }
+                        .clickable {
+                            onPhotoClick(originalIndex, displayIndex)
+                        },
+                    contentScale = ContentScale.Crop
+                )
             }
+        }
 
+        // Hidden images for preloading
+        preloadedPhotos.forEach { (_, photo) ->
             AsyncImage(
                 model = File(photo.localPath),
-                contentDescription = photo.filename,
+                contentDescription = null,
                 modifier = Modifier
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .graphicsLayer {
-                        rotationY = rotation
-                        cameraDistance = 12f * density // Add depth to the flip
-                    }
-                    .clickable {
-                        onPhotoClick(originalIndex, displayIndex)
-                    },
+                    .size(1.dp) // Tiny invisible size
+                    .alpha(0f), // Completely transparent
                 contentScale = ContentScale.Crop
             )
         }
