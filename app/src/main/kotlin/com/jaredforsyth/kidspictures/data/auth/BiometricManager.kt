@@ -12,11 +12,20 @@ class BiometricAuthManager(private val activity: FragmentActivity) {
     private val biometricManager = BiometricManager.from(activity)
 
     fun isBiometricAvailable(): Boolean {
-        return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)) {
+        return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)) {
             BiometricManager.BIOMETRIC_SUCCESS -> true
-            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> false
-            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> false
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> false
+            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+                // Check if device credentials (PIN/Pattern/Password) are available
+                biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+            }
+            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+                // Check if device credentials are available as fallback
+                biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+            }
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                // Check if device credentials are available as fallback
+                biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+            }
             else -> false
         }
     }
@@ -50,9 +59,8 @@ class BiometricAuthManager(private val activity: FragmentActivity) {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Parent Authentication Required")
             .setSubtitle("Unlock to change photos")
-            .setDescription("This prevents kids from changing the selected photos")
-            .setNegativeButtonText("Cancel")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .setDescription("Use your fingerprint, face, PIN, pattern, or password")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build()
 
         biometricPrompt.authenticate(promptInfo)
