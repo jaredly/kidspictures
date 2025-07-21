@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
 import android.content.Intent
@@ -39,6 +41,7 @@ import com.jaredforsyth.kidspictures.ui.theme.*
 import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
 import com.jaredforsyth.kidspictures.ui.viewmodel.ViewMode
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -507,6 +510,8 @@ private fun PatchworkGrid(
     onPhotoClick: (Int, Int) -> Unit,
     onPatchworkReplaceCallback: ((Int) -> Unit) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+
     // Calculate how many photos fit on screen
     val screenWidth = LocalContext.current.resources.displayMetrics.widthPixels / LocalContext.current.resources.displayMetrics.density
     val screenHeight = LocalContext.current.resources.displayMetrics.heightPixels / LocalContext.current.resources.displayMetrics.density
@@ -527,14 +532,33 @@ private fun PatchworkGrid(
         photos.shuffled().take(maxPhotos)
     ) }
 
+    // Animation state
+    var animatingIndex by remember { mutableIntStateOf(-1) }
+    val animationProgress by animateFloatAsState(
+        targetValue = if (animatingIndex >= 0) 1f else 0f,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        finishedListener = {
+            animatingIndex = -1
+        },
+        label = "CardFlip"
+    )
+
     // Set up the replacement callback
     LaunchedEffect(photos) {
         onPatchworkReplaceCallback { displayIndex ->
             val remainingPhotos = photos - displayedPhotos.toSet()
             if (remainingPhotos.isNotEmpty() && displayIndex < displayedPhotos.size) {
-                val newDisplayedPhotos = displayedPhotos.toMutableList()
-                newDisplayedPhotos[displayIndex] = remainingPhotos.random()
-                displayedPhotos = newDisplayedPhotos
+                scope.launch {
+                    // Start animation
+                    animatingIndex = displayIndex
+
+                    // Wait for animation to reach midpoint, then swap photo
+                    delay(300) // Half of animation duration
+
+                    val newDisplayedPhotos = displayedPhotos.toMutableList()
+                    newDisplayedPhotos[displayIndex] = remainingPhotos.random()
+                    displayedPhotos = newDisplayedPhotos
+                }
             }
         }
     }
@@ -548,12 +572,23 @@ private fun PatchworkGrid(
         itemsIndexed(displayedPhotos) { displayIndex, photo ->
             val originalIndex = photos.indexOf(photo)
 
+            // Calculate rotation for this specific item
+            val rotation = if (animatingIndex == displayIndex) {
+                animationProgress * 180f
+            } else {
+                0f
+            }
+
             AsyncImage(
                 model = File(photo.localPath),
                 contentDescription = photo.filename,
                 modifier = Modifier
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(8.dp))
+                    .graphicsLayer {
+                        rotationY = rotation
+                        cameraDistance = 12f * density // Add depth to the flip
+                    }
                     .clickable {
                         onPhotoClick(originalIndex, displayIndex)
                     },
