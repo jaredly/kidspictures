@@ -9,6 +9,8 @@ import com.jaredforsyth.kidspictures.data.auth.GoogleAuthManager
 import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
 import com.jaredforsyth.kidspictures.data.models.PickerSession
 import com.jaredforsyth.kidspictures.data.repository.PhotosPickerRepository
+import com.jaredforsyth.kidspictures.data.repository.LocalPhotoRepository
+import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +23,10 @@ data class PickerState(
     val user: GoogleSignInAccount? = null,
     val currentSession: PickerSession? = null,
     val selectedMediaItems: List<PickedMediaItem> = emptyList(),
+    val localPhotos: List<LocalPhoto> = emptyList(),
+    val hasLocalPhotos: Boolean = false,
+    val isDownloading: Boolean = false,
+    val downloadProgress: Pair<Int, Int>? = null, // current/total
     val pickerUri: String? = null,
     val isPolling: Boolean = false,
     val error: String? = null
@@ -30,12 +36,14 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
     private val authManager = GoogleAuthManager(context)
     private val repository = PhotosPickerRepository()
+    private val localPhotoRepository = LocalPhotoRepository(context)
 
     private val _pickerState = MutableStateFlow(PickerState())
     val pickerState: StateFlow<PickerState> = _pickerState.asStateFlow()
 
     init {
         checkSignInStatus()
+        loadLocalPhotos()
     }
 
     fun getSignInIntent(): Intent {
@@ -79,6 +87,102 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
     suspend fun getAccessToken(): String? {
         return authManager.getAccessToken()
+    }
+
+    private fun loadLocalPhotos() {
+        viewModelScope.launch {
+            try {
+                val localPhotos = localPhotoRepository.getLocalPhotos()
+                val hasPhotos = localPhotos.isNotEmpty()
+
+                _pickerState.value = _pickerState.value.copy(
+                    localPhotos = localPhotos,
+                    hasLocalPhotos = hasPhotos
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _pickerState.value = _pickerState.value.copy(
+                    error = "Failed to load local photos: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun downloadAndStorePhotos() {
+        viewModelScope.launch {
+            val mediaItems = _pickerState.value.selectedMediaItems
+            val accessToken = authManager.getAccessToken()
+
+            if (mediaItems.isEmpty() || accessToken == null) {
+                _pickerState.value = _pickerState.value.copy(
+                    error = "No photos selected or authentication failed"
+                )
+                return@launch
+            }
+
+            _pickerState.value = _pickerState.value.copy(
+                isDownloading = true,
+                downloadProgress = null,
+                error = null
+            )
+
+            try {
+                val result = localPhotoRepository.downloadAndStorePhotos(
+                    mediaItems = mediaItems,
+                    authToken = accessToken,
+                    onProgress = { current, total ->
+                        _pickerState.value = _pickerState.value.copy(
+                            downloadProgress = Pair(current, total)
+                        )
+                    }
+                )
+
+                result.fold(
+                    onSuccess = { localPhotos ->
+                        _pickerState.value = _pickerState.value.copy(
+                            isDownloading = false,
+                            downloadProgress = null,
+                            localPhotos = localPhotos,
+                            hasLocalPhotos = true,
+                            selectedMediaItems = emptyList(), // Clear temporary selection
+                            currentSession = null,
+                            error = null
+                        )
+                        println("✅ Successfully downloaded ${localPhotos.size} photos")
+                    },
+                    onFailure = { error ->
+                        _pickerState.value = _pickerState.value.copy(
+                            isDownloading = false,
+                            downloadProgress = null,
+                            error = "Download failed: ${error.message}"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _pickerState.value = _pickerState.value.copy(
+                    isDownloading = false,
+                    downloadProgress = null,
+                    error = "Download error: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun clearLocalPhotos() {
+        viewModelScope.launch {
+            try {
+                localPhotoRepository.clearLocalPhotos()
+                _pickerState.value = _pickerState.value.copy(
+                    localPhotos = emptyList(),
+                    hasLocalPhotos = false
+                )
+                println("✅ Cleared all local photos")
+            } catch (e: Exception) {
+                _pickerState.value = _pickerState.value.copy(
+                    error = "Failed to clear photos: ${e.message}"
+                )
+            }
+        }
     }
 
     fun createPickerSession() {
