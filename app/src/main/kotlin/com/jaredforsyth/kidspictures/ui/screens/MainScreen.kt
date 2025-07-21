@@ -37,6 +37,7 @@ import com.jaredforsyth.kidspictures.data.auth.BiometricResult
 import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
 import com.jaredforsyth.kidspictures.ui.theme.*
 import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
+import com.jaredforsyth.kidspictures.ui.viewmodel.ViewMode
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -49,9 +50,14 @@ fun MainScreen(
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
+    var selectedFromPatchwork by remember { mutableStateOf(false) }
+    var patchworkDisplayIndex by remember { mutableIntStateOf(-1) }
     var showBiometricError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Reference to trigger patchwork grid photo replacement
+    var patchworkReplaceCallback by remember { mutableStateOf<((Int) -> Unit)?>(null) }
 
     // Auto-open Google Photos picker when session is ready
     LaunchedEffect(pickerState.currentSession?.pickerUri) {
@@ -148,10 +154,19 @@ fun MainScreen(
                 }
 
                 pickerState.hasLocalPhotos -> {
-                    LocalPhotoGrid(
+                    PhotoViewerTabs(
                         photos = pickerState.localPhotos,
-                        onPhotoClick = { index ->
+                        viewMode = pickerState.viewMode,
+                        onViewModeChange = { mode ->
+                            pickerViewModel.setViewMode(mode)
+                        },
+                        onPhotoClick = { index, fromPatchwork, displayIndex ->
                             selectedPhotoIndex = index
+                            selectedFromPatchwork = fromPatchwork
+                            patchworkDisplayIndex = displayIndex
+                        },
+                        onPatchworkReplaceCallback = { callback ->
+                            patchworkReplaceCallback = callback
                         }
                     )
                 }
@@ -231,7 +246,16 @@ fun MainScreen(
         LocalPhotoViewer(
             photos = pickerState.localPhotos,
             initialIndex = selectedPhotoIndex,
-            onDismiss = { selectedPhotoIndex = -1 }
+            onDismiss = {
+                // If dismissed from patchwork mode, replace the photo
+                if (selectedFromPatchwork && patchworkDisplayIndex >= 0) {
+                    patchworkReplaceCallback?.invoke(patchworkDisplayIndex)
+                }
+
+                selectedPhotoIndex = -1
+                selectedFromPatchwork = false
+                patchworkDisplayIndex = -1
+            }
         )
     }
 
@@ -394,6 +418,147 @@ private fun DownloadingScreen(
             )
         ) {
             Text("Stop & Keep Photos")
+        }
+    }
+}
+
+@Composable
+private fun PhotoViewerTabs(
+    photos: List<LocalPhoto>,
+    viewMode: ViewMode,
+    onViewModeChange: (ViewMode) -> Unit,
+    onPhotoClick: (Int, Boolean, Int) -> Unit,
+    onPatchworkReplaceCallback: ((Int) -> Unit) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Header with photo count
+        Text(
+            text = "Your Photos (${photos.size})",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = FunBlue,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Tab row for switching view modes
+        TabRow(
+            selectedTabIndex = when (viewMode) {
+                ViewMode.GRID -> 0
+                ViewMode.PATCHWORK -> 1
+            },
+            containerColor = LightBackground,
+            contentColor = FunBlue,
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            Tab(
+                selected = viewMode == ViewMode.GRID,
+                onClick = { onViewModeChange(ViewMode.GRID) },
+                text = { Text("Grid") }
+            )
+            Tab(
+                selected = viewMode == ViewMode.PATCHWORK,
+                onClick = { onViewModeChange(ViewMode.PATCHWORK) },
+                text = { Text("Patchwork") }
+            )
+        }
+
+        // Content based on selected view mode
+        when (viewMode) {
+            ViewMode.GRID -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(photos) { index, photo ->
+                        AsyncImage(
+                            model = File(photo.localPath),
+                            contentDescription = photo.filename,
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onPhotoClick(index, false, -1) // No patchwork display index for grid
+                                },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+
+            ViewMode.PATCHWORK -> {
+                PatchworkGrid(
+                    photos = photos,
+                    onPhotoClick = { index, displayIndex -> onPhotoClick(index, true, displayIndex) },
+                    onPatchworkReplaceCallback = onPatchworkReplaceCallback
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatchworkGrid(
+    photos: List<LocalPhoto>,
+    onPhotoClick: (Int, Int) -> Unit,
+    onPatchworkReplaceCallback: ((Int) -> Unit) -> Unit
+) {
+    // Calculate how many photos fit on screen
+    val screenWidth = LocalContext.current.resources.displayMetrics.widthPixels / LocalContext.current.resources.displayMetrics.density
+    val screenHeight = LocalContext.current.resources.displayMetrics.heightPixels / LocalContext.current.resources.displayMetrics.density
+
+    // Account for padding and spacing
+    val availableWidth = screenWidth - 32 // 16dp padding on each side
+    val availableHeight = screenHeight - 200 // Account for header, tab bar, bottom nav, etc.
+
+    val photoSize = 120 // Same as grid
+    val spacing = 8
+
+    val columns = maxOf(1, ((availableWidth + spacing) / (photoSize + spacing)).toInt())
+    val rows = maxOf(1, ((availableHeight + spacing) / (photoSize + spacing)).toInt())
+    val maxPhotos = columns * rows
+
+    // State to track which photos are currently displayed
+    var displayedPhotos by remember { mutableStateOf(
+        photos.shuffled().take(maxPhotos)
+    ) }
+
+    // Set up the replacement callback
+    LaunchedEffect(photos) {
+        onPatchworkReplaceCallback { displayIndex ->
+            val remainingPhotos = photos - displayedPhotos.toSet()
+            if (remainingPhotos.isNotEmpty() && displayIndex < displayedPhotos.size) {
+                val newDisplayedPhotos = displayedPhotos.toMutableList()
+                newDisplayedPhotos[displayIndex] = remainingPhotos.random()
+                displayedPhotos = newDisplayedPhotos
+            }
+        }
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        verticalArrangement = Arrangement.spacedBy(spacing.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.dp),
+        modifier = Modifier.heightIn(max = availableHeight.dp)
+    ) {
+        itemsIndexed(displayedPhotos) { displayIndex, photo ->
+            val originalIndex = photos.indexOf(photo)
+
+            AsyncImage(
+                model = File(photo.localPath),
+                contentDescription = photo.filename,
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        onPhotoClick(originalIndex, displayIndex)
+                    },
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }

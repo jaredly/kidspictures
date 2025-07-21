@@ -31,8 +31,14 @@ data class PickerState(
     val downloadProgress: Pair<Int, Int>? = null, // current/total
     val pickerUri: String? = null,
     val isPolling: Boolean = false,
+    val viewMode: ViewMode = ViewMode.GRID,
     val error: String? = null
 )
+
+enum class ViewMode {
+    GRID,
+    PATCHWORK
+}
 
 class PickerViewModel(private val context: Context) : ViewModel() {
 
@@ -227,6 +233,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
     fun clearError() {
         _pickerState.value = _pickerState.value.copy(error = null)
+    }
+
+    fun setViewMode(mode: ViewMode) {
+        _pickerState.value = _pickerState.value.copy(viewMode = mode)
     }
 
     fun createPickerSession() {
