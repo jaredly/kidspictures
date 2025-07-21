@@ -30,6 +30,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
 import com.jaredforsyth.kidspictures.data.auth.BiometricAuthManager
 import com.jaredforsyth.kidspictures.data.auth.BiometricResult
 import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
@@ -42,14 +44,30 @@ import java.io.File
 @Composable
 fun MainScreen(
     pickerViewModel: PickerViewModel,
-    onSelectPhotos: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onNeedSignIn: () -> Unit = {}
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
     var showBiometricError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Auto-open Google Photos picker when session is ready
+    LaunchedEffect(pickerState.currentSession?.pickerUri) {
+        pickerState.currentSession?.pickerUri?.let { uri ->
+            println("🌐 Auto-opening Google Photos picker: $uri")
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+                context.startActivity(intent)
+
+                // Start polling immediately
+                pickerViewModel.startPollingSession()
+            } catch (e: Exception) {
+                println("❌ Failed to open picker: ${e.message}")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,7 +97,8 @@ fun MainScreen(
                                         when (val result = biometricManager.authenticate()) {
                                             is BiometricResult.Success -> {
                                                 pickerViewModel.clearLocalPhotos()
-                                                onSelectPhotos()
+                                                // Start photo selection process
+                                                pickerViewModel.startPhotoSelection()
                                             }
                                             is BiometricResult.Failed -> {
                                                 showBiometricError = "Authentication failed"
@@ -130,15 +149,69 @@ fun MainScreen(
 
                 else -> {
                     FirstTimeSetupScreen(
-                        onSelectPhotos = onSelectPhotos
+                        onSelectPhotos = {
+                            pickerViewModel.startPhotoSelection()
+                        }
                     )
                 }
             }
 
             // Error handling
             pickerState.error?.let { error ->
-                LaunchedEffect(error) {
-                    // Show error in a snackbar or dialog
+                if (error.contains("sign in", ignoreCase = true)) {
+                    // Show authentication error with sign-in option
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .padding(32.dp)
+                                .fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Sign In Required",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FunBlue
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = error,
+                                    fontSize = 16.sp,
+                                    textAlign = TextAlign.Center,
+                                    color = PurpleGrey40
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row {
+                                    TextButton(
+                                        onClick = {
+                                            pickerViewModel.clearError()
+                                        }
+                                    ) {
+                                        Text("Cancel")
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            pickerViewModel.clearError()
+                                            onNeedSignIn()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = FunBlue)
+                                    ) {
+                                        Text("Sign In")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

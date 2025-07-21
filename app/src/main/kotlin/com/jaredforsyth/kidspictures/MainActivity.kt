@@ -55,17 +55,13 @@ fun KidsPicturesApp() {
 
             MainScreen(
                 pickerViewModel = pickerViewModel,
-                onSelectPhotos = {
-                    if (pickerViewModel.pickerState.value.isSignedIn) {
-                        navController.navigate("picker_launch")
-                    } else {
-                        navController.navigate("sign_in")
-                    }
-                },
                 onSignOut = {
                     navController.navigate("sign_in") {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onNeedSignIn = {
+                    navController.navigate("sign_in")
                 }
             )
         }
@@ -73,7 +69,7 @@ fun KidsPicturesApp() {
         composable("sign_in") {
             SignInScreen(
                 onSignInSuccess = {
-                    navController.navigate("picker_launch") {
+                    navController.navigate("main") {
                         popUpTo("sign_in") { inclusive = true }
                     }
                 }

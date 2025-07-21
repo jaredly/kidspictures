@@ -185,6 +185,28 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+            fun startPhotoSelection() {
+        viewModelScope.launch {
+            try {
+                println("🚀 Starting photo selection process...")
+
+                // Create picker session and open browser directly
+                createPickerSession()
+
+                // The session creation will handle any auth errors
+                // The UI will automatically open the picker when the session is ready
+            } catch (e: Exception) {
+                _pickerState.value = _pickerState.value.copy(
+                    error = "Failed to start photo selection: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun clearError() {
+        _pickerState.value = _pickerState.value.copy(error = null)
+    }
+
     fun createPickerSession() {
         viewModelScope.launch {
             _pickerState.value = _pickerState.value.copy(isLoading = true, error = null)
@@ -211,7 +233,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 } else {
                     _pickerState.value = _pickerState.value.copy(
                         isLoading = false,
-                        error = "No access token available"
+                        error = "Please sign in to Google to select photos"
                     )
                 }
             } catch (e: Exception) {
@@ -363,10 +385,6 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             isSignedIn = currentUser != null,
             user = currentUser
         )
-    }
-
-    fun clearError() {
-        _pickerState.value = _pickerState.value.copy(error = null)
     }
 
     fun clearSelection() {
