@@ -164,10 +164,15 @@ fun PhotoGalleryScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             itemsIndexed(pickerState.selectedMediaItems) { index, mediaItem ->
+                                // Check if this is a video and append -no to remove play button overlay
+                                val isVideo = mediaItem.mediaFile.mimeType?.startsWith("video/") == true ||
+                                             mediaItem.type?.lowercase()?.contains("video") == true
+                                val videoSuffix = if (isVideo) "-no" else ""
+
                                 AsyncImage(
                                     model = createImageRequest(
                                         context = context,
-                                        url = "${mediaItem.mediaFile.baseUrl}=w300-h300-c", // Use Google Photos sizing
+                                        url = "${mediaItem.mediaFile.baseUrl}=w300-h300-c${videoSuffix}", // Use Google Photos sizing, no play button for videos
                                         authToken = authToken
                                     ),
                                     contentDescription = mediaItem.mediaFile.filename,
@@ -228,10 +233,15 @@ fun FullScreenPhotoViewer(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
+                // Check if this is a video and append -no to remove play button overlay
+                val isVideo = photos[page].mediaFile.mimeType?.startsWith("video/") == true ||
+                             photos[page].type?.lowercase()?.contains("video") == true
+                val videoSuffix = if (isVideo) "-no" else ""
+
                 AsyncImage(
                     model = createImageRequest(
                         context = context,
-                        url = "${photos[page].mediaFile.baseUrl}=w1024-h1024", // High quality for full screen
+                        url = "${photos[page].mediaFile.baseUrl}=w1024-h1024${videoSuffix}", // High quality for full screen, no play button for videos
                         authToken = authToken
                     ),
                     contentDescription = photos[page].mediaFile.filename,

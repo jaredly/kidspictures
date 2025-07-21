@@ -79,6 +79,13 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
+    // Biometric Authentication
+    implementation("androidx.biometric:biometric:1.1.0")
+
+    // Local storage and preferences
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.datastore:datastore-core:1.0.0")
+
     // Activity for photo picker
     implementation("androidx.activity:activity-ktx:1.8.2")
 
