@@ -31,6 +31,13 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
 import android.content.Intent
@@ -84,7 +91,10 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (pickerState.hasLocalPhotos) "Your Photos" else "Kids Pictures",
+                        text = if (pickerState.hasLocalPhotos)
+                            "Your Photos (${pickerState.localPhotos.size})"
+                        else
+                            "Kids Pictures",
                         color = FunBlue,
                         fontWeight = FontWeight.Bold
                     )
@@ -172,6 +182,12 @@ fun MainScreen(
                         onPatchworkReplaceCallback = { callback ->
                             patchworkReplaceCallback = callback
                         }
+                    )
+                }
+
+                pickerState.isLoadingLocalPhotos -> {
+                    LoadingScreen(
+                        message = "Loading your photos..."
                     )
                 }
 
@@ -439,15 +455,6 @@ private fun PhotoViewerTabs(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header with photo count
-        Text(
-            text = "Your Photos (${photos.size})",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = FunBlue,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
         // Tab row for switching view modes
         TabRow(
             selectedTabIndex = when (viewMode) {
@@ -689,13 +696,22 @@ private fun LocalPhotoGrid(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LocalPhotoViewer(
     photos: List<LocalPhoto>,
     initialIndex: Int,
     onDismiss: () -> Unit
 ) {
+    val photo = photos[initialIndex]
+
+    // Zoom and pan state
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // Dismiss gesture state
+    var dismissOffset by remember { mutableFloatStateOf(0f) }
+    val dismissThreshold = 150f // Lower threshold for easier testing
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -705,28 +721,85 @@ fun LocalPhotoViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
-        ) {
-            val pagerState = rememberPagerState(
-                initialPage = initialIndex,
-                pageCount = { photos.size }
-            )
+                .background(Color.Black.copy(alpha = 1f - (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(0f, 0.8f)))
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        do {
+                            val event = awaitPointerEvent()
+                            val changes = event.changes
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                AsyncImage(
-                    model = File(photos[page].localPath),
-                    contentDescription = photos[page].filename,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-            }
+                            if (changes.size == 1) {
+                                // Single finger - handle dismiss or pan
+                                val change = changes.first()
+                                if (change.pressed) {
+                                    val delta = change.position - change.previousPosition
+
+                                    if (scale <= 1f) {
+                                        // Not zoomed - vertical drag for dismiss
+                                        dismissOffset += delta.y
+                                    } else {
+                                        // Zoomed - pan around image
+                                        offset = Offset(
+                                            x = (offset.x + delta.x).coerceIn(-size.width.toFloat() * (scale - 1) / 2, size.width.toFloat() * (scale - 1) / 2),
+                                            y = (offset.y + delta.y).coerceIn(-size.height.toFloat() * (scale - 1) / 2, size.height.toFloat() * (scale - 1) / 2)
+                                        )
+                                    }
+                                }
+                            } else if (changes.size == 2) {
+                                // Two fingers - handle zoom
+                                val change1 = changes[0]
+                                val change2 = changes[1]
+
+                                if (change1.pressed && change2.pressed) {
+                                    val currentDistance = (change1.position - change2.position).getDistance()
+                                    val previousDistance = (change1.previousPosition - change2.previousPosition).getDistance()
+
+                                    if (previousDistance > 0) {
+                                        val zoomChange = currentDistance / previousDistance
+                                        scale = (scale * zoomChange).coerceIn(1f, 5f)
+
+                                        // Reset pan when zooming out to 1x
+                                        if (scale == 1f) {
+                                            offset = Offset.Zero
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Check for gesture end
+                            if (changes.none { it.pressed }) {
+                                // Gesture ended - check dismiss
+                                if (scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold) {
+                                    onDismiss()
+                                } else {
+                                    dismissOffset = 0f
+                                }
+                            }
+
+                        } while (changes.any { it.pressed })
+                    }
+                }
+        ) {
+            AsyncImage(
+                model = File(photo.localPath),
+                contentDescription = photo.filename,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset { IntOffset(0, dismissOffset.roundToInt()) }
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    ),
+                contentScale = ContentScale.Fit
+            )
 
             // Close button
             IconButton(
-                onClick = onDismiss,
+                onClick = {
+                    onDismiss()
+                },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
@@ -742,21 +815,23 @@ fun LocalPhotoViewer(
                 )
             }
 
-            // Photo name overlay
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(
-                        Color.Black.copy(alpha = 0.7f)
+            // Photo name overlay - only show when not zoomed
+            if (scale <= 1.1f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(
+                            Color.Black.copy(alpha = 0.7f)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = photo.filename,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp
                     )
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = photos[pagerState.currentPage].filename,
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 12.sp
-                )
+                }
             }
         }
     }

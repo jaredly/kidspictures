@@ -26,6 +26,7 @@ data class PickerState(
     val selectedMediaItems: List<PickedMediaItem> = emptyList(),
     val localPhotos: List<LocalPhoto> = emptyList(),
     val hasLocalPhotos: Boolean = false,
+    val isLoadingLocalPhotos: Boolean = true, // Start as true since we load on init
     val isFetchingMediaItems: Boolean = false, // Loading during /mediaItems query
     val isDownloading: Boolean = false,
     val downloadProgress: Pair<Int, Int>? = null, // current/total
@@ -107,12 +108,14 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
                 _pickerState.value = _pickerState.value.copy(
                     localPhotos = localPhotos,
-                    hasLocalPhotos = hasPhotos
+                    hasLocalPhotos = hasPhotos,
+                    isLoadingLocalPhotos = false // Set to false after loading
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
                 _pickerState.value = _pickerState.value.copy(
-                    error = "Failed to load local photos: ${e.message}"
+                    error = "Failed to load local photos: ${e.message}",
+                    isLoadingLocalPhotos = false // Set to false on error
                 )
             }
         }
