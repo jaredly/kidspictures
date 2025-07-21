@@ -118,8 +118,13 @@ class LocalPhotoRepository(private val context: Context) {
                 return null
             }
 
-            val url = "${baseUrl}=w1024-h1024" // High quality download
-            println("🌐 Downloading from: $url")
+            // Check if this is a video and append -no to remove play button overlay
+            val isVideo = mediaItem.mediaFile.mimeType?.startsWith("video/") == true ||
+                         mediaItem.type?.lowercase()?.contains("video") == true
+            val videoSuffix = if (isVideo) "-no" else ""
+
+            val url = "${baseUrl}=w1024-h1024${videoSuffix}" // High quality download, no play button for videos
+            println("🌐 Downloading ${if (isVideo) "video thumbnail" else "photo"} from: $url")
 
             // Move network request to IO thread
             val response = withContext(Dispatchers.IO) {
