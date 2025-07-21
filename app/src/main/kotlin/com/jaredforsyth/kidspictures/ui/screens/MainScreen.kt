@@ -354,6 +354,15 @@ private fun DownloadingScreen(
             textAlign = TextAlign.Center
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "You can stop anytime and keep what's downloaded",
+            fontSize = 14.sp,
+            color = PurpleGrey40,
+            textAlign = TextAlign.Center
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (progress != null) {
@@ -384,7 +393,7 @@ private fun DownloadingScreen(
                 contentColor = FunBlue
             )
         ) {
-            Text("Cancel Download")
+            Text("Stop & Keep Photos")
         }
     }
 }

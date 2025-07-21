@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -69,6 +72,18 @@ class LocalPhotoRepository(private val context: Context) {
             val localPhotos = mutableListOf<LocalPhoto>()
 
             mediaItems.forEachIndexed { index, mediaItem ->
+                // Check for cancellation before each download
+                try {
+                    currentCoroutineContext().ensureActive()
+                } catch (e: CancellationException) {
+                    println("🛑 Download cancelled after ${localPhotos.size} photos. Saving what we have...")
+                    // Save whatever we've downloaded so far
+                    if (localPhotos.isNotEmpty()) {
+                        savePhotoMetadata(localPhotos)
+                    }
+                    return Result.success(localPhotos)
+                }
+
                 println("📥 Downloading photo ${index + 1}/${mediaItems.size}: ${mediaItem.mediaFile.filename}")
                 onProgress(index + 1, mediaItems.size)
 
@@ -81,10 +96,14 @@ class LocalPhotoRepository(private val context: Context) {
                 }
             }
 
-            // Save metadata
+            // Save metadata for all successfully downloaded photos
             savePhotoMetadata(localPhotos)
 
             Result.success(localPhotos)
+        } catch (e: CancellationException) {
+            // Handle cancellation that might occur during download or save operations
+            println("🛑 Download cancelled during operation")
+            throw e // Re-throw to let the coroutine handle it properly
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)

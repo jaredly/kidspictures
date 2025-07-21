@@ -184,13 +184,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
     }
 
     fun cancelDownload() {
+        println("🛑 User requested download cancellation")
         downloadJob?.cancel()
         downloadJob = null
-        _pickerState.value = _pickerState.value.copy(
-            isDownloading = false,
-            downloadProgress = null
-        )
-        println("❌ Download cancelled by user")
+        // Let the download completion handler update the state with partial results
     }
 
     fun clearLocalPhotos() {
