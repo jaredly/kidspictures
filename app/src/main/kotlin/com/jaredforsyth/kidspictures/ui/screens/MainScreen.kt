@@ -721,7 +721,12 @@ fun LocalPhotoViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 1f - (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(0f, 0.8f)))
+                .background(Color.Black.copy(
+                    alpha = 1f - maxOf(
+                        (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(0f, 0.8f), // Swipe dismiss fade
+                        if (scale < 1f) ((1f - scale) / 0.2f).coerceIn(0f, 0.8f) else 0f // Zoom out fade (0.8f to 1f range)
+                    )
+                ))
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         do {
@@ -756,10 +761,11 @@ fun LocalPhotoViewer(
 
                                     if (previousDistance > 0) {
                                         val zoomChange = currentDistance / previousDistance
-                                        scale = (scale * zoomChange).coerceIn(1f, 5f)
+                                        val newScale = (scale * zoomChange).coerceIn(0.5f, 5f) // Allow zoom out to 0.5x
+                                        scale = newScale
 
-                                        // Reset pan when zooming out to 1x
-                                        if (scale == 1f) {
+                                        // Reset pan when at normal zoom
+                                        if (scale <= 1f) {
                                             offset = Offset.Zero
                                         }
                                     }
@@ -768,10 +774,18 @@ fun LocalPhotoViewer(
 
                             // Check for gesture end
                             if (changes.none { it.pressed }) {
-                                // Gesture ended - check dismiss
-                                if (scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold) {
+                                // Gesture ended - check dismiss conditions
+                                if (scale < 0.8f) {
+                                    // Zoomed out too far - dismiss
+                                    onDismiss()
+                                } else if (scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold) {
+                                    // Swiped far enough - dismiss
                                     onDismiss()
                                 } else {
+                                    // Reset to normal state
+                                    if (scale < 1f) {
+                                        scale = 1f // Snap back to normal zoom
+                                    }
                                     dismissOffset = 0f
                                 }
                             }
