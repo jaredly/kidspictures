@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 data class PickerState(
     val isLoading: Boolean = false,
@@ -25,6 +26,7 @@ data class PickerState(
     val selectedMediaItems: List<PickedMediaItem> = emptyList(),
     val localPhotos: List<LocalPhoto> = emptyList(),
     val hasLocalPhotos: Boolean = false,
+    val isFetchingMediaItems: Boolean = false, // Loading during /mediaItems query
     val isDownloading: Boolean = false,
     val downloadProgress: Pair<Int, Int>? = null, // current/total
     val pickerUri: String? = null,
@@ -37,6 +39,8 @@ class PickerViewModel(private val context: Context) : ViewModel() {
     private val authManager = GoogleAuthManager(context)
     private val repository = PhotosPickerRepository()
     private val localPhotoRepository = LocalPhotoRepository(context)
+
+    private var downloadJob: Job? = null
 
     private val _pickerState = MutableStateFlow(PickerState())
     val pickerState: StateFlow<PickerState> = _pickerState.asStateFlow()
@@ -109,7 +113,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
     }
 
     fun downloadAndStorePhotos() {
-        viewModelScope.launch {
+        downloadJob = viewModelScope.launch {
             val mediaItems = _pickerState.value.selectedMediaItems
             val accessToken = authManager.getAccessToken()
 
@@ -177,6 +181,16 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 )
             }
         }
+    }
+
+    fun cancelDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _pickerState.value = _pickerState.value.copy(
+            isDownloading = false,
+            downloadProgress = null
+        )
+        println("❌ Download cancelled by user")
     }
 
     fun clearLocalPhotos() {
@@ -293,6 +307,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             if (updatedSession.mediaItemsSet) {
                                 println("✅ Media items set! Getting selected photos...")
                                 // User has finished selecting, get the media items
+                                _pickerState.value = _pickerState.value.copy(
+                                    isPolling = false,
+                                    isFetchingMediaItems = true
+                                )
                                 getSelectedMediaItems()
                                 shouldContinuePolling = false
                             }
@@ -352,7 +370,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         println("📊 Type: ${item.type}")
                     }
                     _pickerState.value = _pickerState.value.copy(
-                        isPolling = false,
+                        isFetchingMediaItems = false,
                         selectedMediaItems = mediaItems
                     )
 
@@ -363,7 +381,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 onFailure = { error ->
                     println("❌ Get Media Items failure: ${error.message}")
                     _pickerState.value = _pickerState.value.copy(
-                        isPolling = false,
+                        isFetchingMediaItems = false,
                         error = "Failed to get media items: ${error.message}"
                     )
                 }
@@ -371,7 +389,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         } catch (e: Exception) {
             println("❌ Get Media Items exception: ${e.message}")
             _pickerState.value = _pickerState.value.copy(
-                isPolling = false,
+                isFetchingMediaItems = false,
                 error = "Media items error: ${e.message}"
             )
         }

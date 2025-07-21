@@ -132,9 +132,18 @@ fun MainScreen(
                 .background(LightBackground)
         ) {
             when {
+                pickerState.isFetchingMediaItems -> {
+                    LoadingScreen(
+                        message = "Getting your selected photos...\n\n📸 Found ${pickerState.selectedMediaItems.size} photos to download"
+                    )
+                }
+
                 pickerState.isDownloading -> {
                     DownloadingScreen(
-                        progress = pickerState.downloadProgress
+                        progress = pickerState.downloadProgress,
+                        onCancel = {
+                            pickerViewModel.cancelDownload()
+                        }
                     )
                 }
 
@@ -242,6 +251,35 @@ fun MainScreen(
 }
 
 @Composable
+private fun LoadingScreen(
+    message: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(
+            color = FunBlue,
+            modifier = Modifier.size(48.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = message,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = FunBlue,
+            textAlign = TextAlign.Center,
+            lineHeight = 24.sp
+        )
+    }
+}
+
+@Composable
 private fun FirstTimeSetupScreen(
     onSelectPhotos: () -> Unit
 ) {
@@ -298,7 +336,8 @@ private fun FirstTimeSetupScreen(
 
 @Composable
 private fun DownloadingScreen(
-    progress: Pair<Int, Int>?
+    progress: Pair<Int, Int>?,
+    onCancel: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -335,6 +374,17 @@ private fun DownloadingScreen(
             CircularProgressIndicator(
                 color = FunBlue
             )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedButton(
+            onClick = onCancel,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = FunBlue
+            )
+        ) {
+            Text("Cancel Download")
         }
     }
 }
