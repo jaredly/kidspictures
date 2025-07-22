@@ -152,6 +152,12 @@ fun MainScreen(
                 .background(LightBackground)
         ) {
             when {
+                pickerState.isPolling -> {
+                    LoadingScreen(
+                        message = "Waiting for your photo selection...\n\n💡 After selecting photos in Google Photos, they'll download automatically!"
+                    )
+                }
+
                 pickerState.isFetchingMediaItems -> {
                     LoadingScreen(
                         message = "Getting your selected photos...\n\n📸 Found ${pickerState.selectedMediaItems.size} photos to download"
@@ -164,6 +170,12 @@ fun MainScreen(
                         onCancel = {
                             pickerViewModel.cancelDownload()
                         }
+                    )
+                }
+
+                pickerState.isLoadingLocalPhotos -> {
+                    LoadingScreen(
+                        message = "Loading your photos..."
                     )
                 }
 
@@ -182,12 +194,6 @@ fun MainScreen(
                         onPatchworkReplaceCallback = { callback ->
                             patchworkReplaceCallback = callback
                         }
-                    )
-                }
-
-                pickerState.isLoadingLocalPhotos -> {
-                    LoadingScreen(
-                        message = "Loading your photos..."
                     )
                 }
 

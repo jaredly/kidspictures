@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 
 data class PickerState(
     val isLoading: Boolean = false,
@@ -103,8 +104,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
     private fun loadLocalPhotos() {
         viewModelScope.launch {
             try {
+                println("🔄 Loading local photos...")
                 val localPhotos = localPhotoRepository.getLocalPhotos()
                 val hasPhotos = localPhotos.isNotEmpty()
+
+                println("📂 Found ${localPhotos.size} local photos")
 
                 _pickerState.value = _pickerState.value.copy(
                     localPhotos = localPhotos,
@@ -113,6 +117,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
+                println("❌ Error loading local photos: ${e.message}")
                 _pickerState.value = _pickerState.value.copy(
                     error = "Failed to load local photos: ${e.message}",
                     isLoadingLocalPhotos = false // Set to false on error
@@ -126,11 +131,13 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             val mediaItems = _pickerState.value.selectedMediaItems
             val accessToken = authManager.getAccessToken()
 
-            println("🔍 Download check - MediaItems: ${mediaItems.size}, AccessToken available: ${accessToken != null}")
+            println("🔽 Starting download process - MediaItems: ${mediaItems.size}, AccessToken available: ${accessToken != null}")
 
             if (mediaItems.isEmpty()) {
                 println("❌ No media items to download")
                 _pickerState.value = _pickerState.value.copy(
+                    isDownloading = false,
+                    isFetchingMediaItems = false,
                     error = "No photos selected"
                 )
                 return@launch
@@ -139,6 +146,8 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             if (accessToken == null) {
                 println("❌ No access token available")
                 _pickerState.value = _pickerState.value.copy(
+                    isDownloading = false,
+                    isFetchingMediaItems = false,
                     error = "Authentication failed - please sign in again"
                 )
                 return@launch
@@ -146,15 +155,18 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
             _pickerState.value = _pickerState.value.copy(
                 isDownloading = true,
+                isFetchingMediaItems = false,
                 downloadProgress = null,
                 error = null
             )
 
             try {
+                println("📥 Starting download of ${mediaItems.size} items...")
                 val result = localPhotoRepository.downloadAndStorePhotos(
                     mediaItems = mediaItems,
                     authToken = accessToken,
                     onProgress = { current, total ->
+                        println("📊 Download progress: $current/$total")
                         _pickerState.value = _pickerState.value.copy(
                             downloadProgress = Pair(current, total)
                         )
@@ -163,6 +175,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
                 result.fold(
                     onSuccess = { localPhotos ->
+                        println("✅ Download completed successfully: ${localPhotos.size} photos saved")
                         _pickerState.value = _pickerState.value.copy(
                             isDownloading = false,
                             downloadProgress = null,
@@ -172,9 +185,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             currentSession = null,
                             error = null
                         )
-                        println("✅ Successfully downloaded ${localPhotos.size} photos")
                     },
                     onFailure = { error ->
+                        println("❌ Download failed: ${error.message}")
+                        error.printStackTrace()
                         _pickerState.value = _pickerState.value.copy(
                             isDownloading = false,
                             downloadProgress = null,
@@ -182,7 +196,19 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         )
                     }
                 )
+            } catch (e: CancellationException) {
+                println("🛑 Download cancelled by user")
+                _pickerState.value = _pickerState.value.copy(
+                    isDownloading = false,
+                    downloadProgress = null,
+                    selectedMediaItems = emptyList(),
+                    currentSession = null,
+                    error = null // Clear error on cancellation
+                )
+                loadLocalPhotos() // Reload local photos to show what was saved
             } catch (e: Exception) {
+                println("❌ Download exception: ${e.message}")
+                e.printStackTrace()
                 _pickerState.value = _pickerState.value.copy(
                     isDownloading = false,
                     downloadProgress = null,
@@ -221,6 +247,12 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             try {
                 println("🚀 Starting photo selection process...")
 
+                // Keep loading state active during session creation
+                _pickerState.value = _pickerState.value.copy(
+                    isLoadingLocalPhotos = true,
+                    error = null
+                )
+
                 // Create picker session and open browser directly
                 createPickerSession()
 
@@ -228,6 +260,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 // The UI will automatically open the picker when the session is ready
             } catch (e: Exception) {
                 _pickerState.value = _pickerState.value.copy(
+                    isLoadingLocalPhotos = false,
                     error = "Failed to start photo selection: ${e.message}"
                 )
             }
@@ -284,8 +317,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         val session = _pickerState.value.currentSession ?: return
 
         viewModelScope.launch {
-            _pickerState.value = _pickerState.value.copy(isPolling = true)
-            println("🔄 Started polling session: ${session.id}")
+            println("🔄 Starting polling session: ${session.id}")
+            _pickerState.value = _pickerState.value.copy(
+                isPolling = true,
+                isLoadingLocalPhotos = false
+            )
 
             try {
                 val accessToken = authManager.getAccessToken()
@@ -293,16 +329,21 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                     // Poll every 3 seconds until mediaItemsSet is true
                     var shouldContinuePolling = true
                     var pollCount = 0
+                    var consecutiveNetworkErrors = 0
+                    val maxNetworkErrors = 5 // Allow up to 5 consecutive network errors
 
-                    while (shouldContinuePolling && pollCount < 60) { // Max 3 minutes
+                    while (shouldContinuePolling && pollCount < 60) { // Max 3 minutes base time
                         pollCount++
                         println("🔍 Polling attempt $pollCount for session ${session.id}")
 
                         val result = repository.getSessionStatus(accessToken, session.id)
 
                         if (result.isSuccess) {
-                                                        val updatedSession = result.getOrThrow()
+                            val updatedSession = result.getOrThrow()
                             println("📊 Session status: mediaItemsSet=${updatedSession.mediaItemsSet}")
+
+                            // Reset network error counter on successful request
+                            consecutiveNetworkErrors = 0
 
                             // Keep the original pickerUri since status responses don't include it
                             val currentSession = _pickerState.value.currentSession
@@ -315,8 +356,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             )
 
                             if (updatedSession.mediaItemsSet) {
-                                println("✅ Media items set! Getting selected photos...")
-                                // User has finished selecting, get the media items
+                                println("✅ Media items detected! Starting fetch and download flow...")
                                 _pickerState.value = _pickerState.value.copy(
                                     isPolling = false,
                                     isFetchingMediaItems = true
@@ -327,38 +367,71 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         } else {
                             val error = result.exceptionOrNull()?.message ?: "Unknown error"
                             println("❌ Polling error: $error")
-                            _pickerState.value = _pickerState.value.copy(
-                                isPolling = false,
-                                error = "Polling error: $error"
-                            )
-                            shouldContinuePolling = false
+
+                            // Check for network-related errors
+                            val isNetworkError = error.let { msg ->
+                                msg.contains("UnknownHostException") ||
+                                msg.contains("Unable to resolve host") ||
+                                msg.contains("ConnectException") ||
+                                msg.contains("SocketTimeoutException") ||
+                                msg.contains("Network is unreachable") ||
+                                msg.contains("No address associated with hostname")
+                            }
+
+                            if (isNetworkError) {
+                                consecutiveNetworkErrors++
+                                println("🌐 Network error $consecutiveNetworkErrors/$maxNetworkErrors")
+
+                                if (consecutiveNetworkErrors >= maxNetworkErrors) {
+                                    println("🚫 Too many network errors, stopping polling")
+                                    _pickerState.value = _pickerState.value.copy(
+                                        isPolling = false,
+                                        error = "Network connection issues. Please check your internet and try again."
+                                    )
+                                    shouldContinuePolling = false
+                                }
+                            } else {
+                                // For non-network errors (like auth), stop immediately
+                                _pickerState.value = _pickerState.value.copy(
+                                    isPolling = false,
+                                    error = "Polling error: $error"
+                                )
+                                shouldContinuePolling = false
+                            }
                         }
 
                         if (shouldContinuePolling) {
-                            delay(3000) // Wait 3 seconds before next poll
+                            // Use exponential backoff for network errors, normal delay otherwise
+                            val delayMs = if (consecutiveNetworkErrors > 0) {
+                                val backoffDelay = minOf(3000L * (1L shl consecutiveNetworkErrors), 15000L) // Cap at 15 seconds
+                                println("⏳ Network error backoff: ${backoffDelay}ms")
+                                backoffDelay
+                            } else {
+                                3000L
+                            }
+                            delay(delayMs)
                         }
                     }
 
                     if (pollCount >= 60) {
-                        println("⏰ Polling timeout after $pollCount attempts")
+                        println("⏰ Polling timed out after 3 minutes")
                         _pickerState.value = _pickerState.value.copy(
                             isPolling = false,
-                            error = "Polling timeout - please try again"
+                            error = "Selection timed out. Please try again."
                         )
                     }
                 } else {
                     println("❌ No access token for polling")
                     _pickerState.value = _pickerState.value.copy(
                         isPolling = false,
-                        error = "No access token for polling"
+                        error = "Authentication error. Please sign in again."
                     )
                 }
             } catch (e: Exception) {
                 println("❌ Polling exception: ${e.message}")
-                e.printStackTrace()
                 _pickerState.value = _pickerState.value.copy(
                     isPolling = false,
-                    error = "Polling error: ${e.message}"
+                    error = "Polling failed: ${e.message}"
                 )
             }
         }

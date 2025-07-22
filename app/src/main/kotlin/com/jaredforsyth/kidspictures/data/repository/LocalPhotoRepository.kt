@@ -20,6 +20,7 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "local_photos")
 
@@ -33,7 +34,11 @@ data class LocalPhoto(
 
 class LocalPhotoRepository(private val context: Context) {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     companion object {
         private val PHOTO_METADATA_KEY = stringPreferencesKey("photo_metadata")
@@ -137,7 +142,15 @@ class LocalPhotoRepository(private val context: Context) {
             }
 
             if (!response.isSuccessful) {
-                println("❌ Failed to download photo: ${response.code} - ${response.message}")
+                val errorMsg = when (response.code) {
+                    401 -> "Authentication expired - please sign in again"
+                    403 -> "Access denied - check photo permissions"
+                    404 -> "Photo not found - it may have been deleted"
+                    429 -> "Too many requests - please try downloading fewer photos"
+                    500, 502, 503 -> "Google Photos server error - please try again later"
+                    else -> "HTTP ${response.code} - ${response.message}"
+                }
+                println("❌ Failed to download photo: $errorMsg")
                 response.body?.close()
                 return null
             }
@@ -171,7 +184,13 @@ class LocalPhotoRepository(private val context: Context) {
             println("🎯 Created LocalPhoto: ${localPhoto.filename}")
             localPhoto
         } catch (e: Exception) {
-                println("❌ Some error idk!")
+            val errorMsg = when {
+                e.message?.contains("timeout") == true -> "Network timeout - check your internet connection"
+                e.message?.contains("Unable to resolve host") == true -> "Network error - check your internet connection"
+                e.message?.contains("No space left") == true -> "Storage full - free up some space and try again"
+                else -> "Download error: ${e.message}"
+            }
+            println("❌ Download failed for ${mediaItem.mediaFile.filename}: $errorMsg")
             e.printStackTrace()
             null
         }
