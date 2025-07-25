@@ -474,14 +474,14 @@ class LocalPhotoRepository(private val context: Context) {
 
                 println("📐 Target dimensions: ${newWidth}x${newHeight}")
 
-                // Skip processing if already small enough
-                if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
-                    println("✅ Video already optimal size, copying to final location")
-                    val finalFile = File(videosDir, "${mediaItem.id}.mp4")
-                    inputFile.copyTo(finalFile, overwrite = true)
-                    retriever.release()
-                    return@withContext finalFile
-                }
+                // // Skip processing if already small enough
+                // if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
+                //     println("✅ Video already optimal size, copying to final location")
+                //     val finalFile = File(videosDir, "${mediaItem.id}.mp4")
+                //     inputFile.copyTo(finalFile, overwrite = true)
+                //     retriever.release()
+                //     return@withContext finalFile
+                // }
 
                 // Set up output file
                 val outputFile = File(videosDir, "${mediaItem.id}.mp4")
