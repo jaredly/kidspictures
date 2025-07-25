@@ -59,12 +59,7 @@ fun MainScreen(
     onSignOut: () -> Unit,
     onNeedSignIn: () -> Unit = {}
 ) {
-    val pickerState by pickerViewModel.pickerState.collectAsState()
-
-    // Debug: Log state changes
-    LaunchedEffect(pickerState.videoDownloadDetailedProgress) {
-        println("🖥️ MainScreen: videoDownloadDetailedProgress changed to ${pickerState.videoDownloadDetailedProgress}")
-    }
+        val pickerState by pickerViewModel.pickerState.collectAsState()
 
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
     var selectedFromPatchwork by remember { mutableStateOf(false) }
@@ -437,15 +432,12 @@ private fun DownloadingScreen(
             // Show streaming progress if available
             if (videoDownloadDetailedProgress != null) {
                 val displayPercent = (videoDownloadDetailedProgress * 100).toInt()
-                println("🖥️ UI Composing with progress: $videoDownloadDetailedProgress -> $displayPercent%")
                 Text(
                     text = "${displayPercent}% of current video",
                     fontSize = 11.sp,
                     color = FunOrange,
                     fontStyle = FontStyle.Italic
                 )
-            } else {
-                println("🖥️ UI Composing with NO detailed progress")
             }
 
             Spacer(modifier = Modifier.height(8.dp))

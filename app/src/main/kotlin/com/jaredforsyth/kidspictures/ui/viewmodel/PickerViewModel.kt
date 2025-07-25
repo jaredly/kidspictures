@@ -12,6 +12,7 @@ import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
 import com.jaredforsyth.kidspictures.data.repository.LocalPhotoRepository
 import com.jaredforsyth.kidspictures.data.repository.PhotosPickerRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -140,7 +141,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
     fun downloadAndStorePhotos() {
         downloadJob =
-            viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
                 val mediaItems = _pickerState.value.selectedMediaItems
                 val accessToken = authManager.getAccessToken()
 
@@ -186,8 +187,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             authToken = accessToken,
                             onProgress = { current, total ->
                                 println("📊 Download progress: $current/$total")
-                                _pickerState.value =
-                                    _pickerState.value.copy(downloadProgress = Pair(current, total))
+                                viewModelScope.launch(Dispatchers.Main) {
+                                    _pickerState.value =
+                                        _pickerState.value.copy(downloadProgress = Pair(current, total))
+                                }
                             },
                             onVideoDownloadProgress = {
                                 current,
@@ -214,35 +217,39 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                 )
                                 // }
 
-                                // Throttle rapid updates - only update UI every 5% or on completion
-                                // val shouldUpdate = progressPercent % 5 == 0 ||
-                                // currentVideoProgress >= 1.0f
+                                // Throttle rapid updates - only update UI every 10% or on completion to avoid main thread overload
+                                val shouldUpdate = progressPercent % 10 == 0 || currentVideoProgress >= 1.0f
 
-                                // if (shouldUpdate) {
-                                val newState =
-                                    _pickerState.value.copy(
-                                        isDownloading = false, // Photos are done
-                                        isDownloadingVideos = true,
-                                        videoDownloadProgress = Triple(current, total, filename),
-                                        videoDownloadDetailedProgress = currentVideoProgress,
-                                        progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
-                                    )
-                                _pickerState.value = newState
-                                println(
-                                    "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}, counter=${newState.progressUpdateCounter}"
-                                )
-                                // } else {
-                                //     println("   ⏭️ Throttled update (${progressPercent}%)")
-                                // }
+                                if (shouldUpdate) {
+                                    // Dispatch state update to main thread
+                                    viewModelScope.launch(Dispatchers.Main) {
+                                        val newState =
+                                            _pickerState.value.copy(
+                                                isDownloading = false, // Photos are done
+                                                isDownloadingVideos = true,
+                                                videoDownloadProgress = Triple(current, total, filename),
+                                                videoDownloadDetailedProgress = currentVideoProgress,
+                                                progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
+                                            )
+                                        _pickerState.value = newState
+                                        println(
+                                            "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}, counter=${newState.progressUpdateCounter}"
+                                        )
+                                    }
+                                } else {
+                                    println("   ⏭️ Throttled update (${progressPercent}%)")
+                                }
                             },
                             onVideoProcessingProgress = { current, total, filename ->
                                 println("🔄 Video processing progress: $current/$total - $filename")
-                                _pickerState.value =
-                                    _pickerState.value.copy(
-                                        isDownloadingVideos = false, // Video downloads are done
-                                        isProcessingVideos = true,
-                                        videoProcessingProgress = Triple(current, total, filename)
-                                    )
+                                viewModelScope.launch(Dispatchers.Main) {
+                                    _pickerState.value =
+                                        _pickerState.value.copy(
+                                            isDownloadingVideos = false, // Video downloads are done
+                                            isProcessingVideos = true,
+                                            videoProcessingProgress = Triple(current, total, filename)
+                                        )
+                                }
                             }
                         )
 
