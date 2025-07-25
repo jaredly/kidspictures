@@ -123,10 +123,10 @@ fun MainScreen(
                                                 pickerViewModel.startPhotoSelection()
                                             }
                                             is BiometricResult.Failed -> {
-                                                showBiometricError = "Authentication failed"
+                                                // showBiometricError = "Authentication failed"
                                             }
                                             is BiometricResult.Error -> {
-                                                showBiometricError = result.message
+                                                // showBiometricError = result.message
                                             }
                                         }
                                     }
