@@ -840,7 +840,6 @@ private fun LocalPhotoGrid(
 
                     // Video indicator overlay
                     if (photo.isVideo) {
-                        println("🎬 Grid - Video indicator for ${photo.filename}")
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -903,16 +902,13 @@ fun LocalPhotoViewer(
                 .background(Color.Black)
         ) {
             // Show video or image based on media type
-            println("🎬 LocalPhotoViewer - Photo: ${photo.filename}, isVideo: ${photo.isVideo}, videoPath: ${photo.videoPath}")
             if (photo.isVideo && photo.videoPath != null) {
-                println("🎬 Showing VideoViewer for ${photo.filename}")
                 VideoViewer(
                     photo = photo,
                     onDismiss = onDismiss,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                println("🖼️ Showing ImageViewer for ${photo.filename} (isVideo: ${photo.isVideo}, hasVideoPath: ${photo.videoPath != null})")
                 ImageViewer(
                     photo = photo,
                     onDismiss = onDismiss,
@@ -1027,7 +1023,6 @@ private fun VideoViewer(
                     }
 
                     setOnErrorListener { _, _, _ ->
-                        println("❌ Video playback error for ${photo.filename}")
                         false
                     }
                 }
@@ -1052,15 +1047,13 @@ private fun VideoViewer(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.3f))
                     .clickable {
-                        // This will be handled by the VideoView's MediaController
-                            videoView?.let { view ->
-                                if (!view.isPlaying) {
-                                    view.start()
-                                    isPlaying = true
-                                    println("▶️ Video started via play icon")
-                                }
+                        // Actually start the video when the play button is tapped
+                        videoView?.let { view ->
+                            if (!view.isPlaying) {
+                                view.start()
+                                isPlaying = true
                             }
-
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -1081,7 +1074,6 @@ private fun VideoViewer(
                                 if (!view.isPlaying) {
                                     view.start()
                                     isPlaying = true
-                                    println("▶️ Video started via play icon")
                                 }
                             }
                         }

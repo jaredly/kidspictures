@@ -478,28 +478,18 @@ class LocalPhotoRepository(private val context: Context) {
 
     private suspend fun savePhotoMetadata(photos: List<LocalPhoto>) {
         val metadataJson = serializePhotoMetadata(photos)
-        println("💾 Saving photo metadata:")
-        println("📊 Photos count: ${photos.size}")
-        photos.forEach { photo ->
-            println("📷 ${photo.filename}: isVideo=${photo.isVideo}, videoPath=${photo.videoPath}")
-        }
-        println("💾 JSON: $metadataJson")
         context.dataStore.edit { preferences ->
             preferences[PHOTO_METADATA_KEY] = metadataJson
         }
     }
 
-        private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
+            private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
         val photos = mutableListOf<LocalPhoto>()
 
         if (json.isBlank() || json == "[]") return emptyList()
 
-        println("📖 Loading photo metadata:")
-        println("📊 JSON: $json")
-
         try {
             val jsonArray = JSONArray(json)
-            println("📖 Found ${jsonArray.length()} items in JSON")
 
             for (i in 0 until jsonArray.length()) {
                 val jsonObject = jsonArray.getJSONObject(i)
@@ -518,8 +508,6 @@ class LocalPhotoRepository(private val context: Context) {
                 val videoWidth = if (jsonObject.isNull("videoWidth")) null else jsonObject.optInt("videoWidth")
                 val videoHeight = if (jsonObject.isNull("videoHeight")) null else jsonObject.optInt("videoHeight")
 
-                println("📖 Parsed: $filename -> isVideo=$isVideo, videoPath=$videoPath")
-
                 // Verify thumbnail file still exists
                 if (File(localPath).exists()) {
                     photos.add(LocalPhoto(
@@ -535,18 +523,10 @@ class LocalPhotoRepository(private val context: Context) {
                         videoWidth = videoWidth,
                         videoHeight = videoHeight
                     ))
-                } else {
-                    println("❌ Thumbnail file missing: $localPath")
                 }
             }
         } catch (e: Exception) {
-            println("❌ Error parsing photo metadata: ${e.message}")
             e.printStackTrace()
-        }
-
-        println("📖 Final loaded photos:")
-        photos.forEach { photo ->
-            println("📷 ${photo.filename}: isVideo=${photo.isVideo}, videoPath=${photo.videoPath}")
         }
 
         return photos
