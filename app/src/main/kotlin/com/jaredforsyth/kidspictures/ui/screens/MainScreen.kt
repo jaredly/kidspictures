@@ -33,6 +33,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.viewinterop.AndroidView
+import android.widget.VideoView
+import android.widget.MediaController
+import android.net.Uri
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.*
@@ -41,7 +47,6 @@ import kotlin.math.roundToInt
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
 import android.content.Intent
-import android.net.Uri
 import com.jaredforsyth.kidspictures.data.auth.BiometricAuthManager
 import com.jaredforsyth.kidspictures.data.auth.BiometricResult
 import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
@@ -50,7 +55,6 @@ import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModel
 import com.jaredforsyth.kidspictures.ui.viewmodel.ViewMode
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,6 +171,27 @@ fun MainScreen(
                 pickerState.isDownloading -> {
                     DownloadingScreen(
                         progress = pickerState.downloadProgress,
+                        onCancel = {
+                            pickerViewModel.cancelDownload()
+                        }
+                    )
+                }
+
+                pickerState.isDownloadingVideos -> {
+                    DownloadingScreen(
+                        progress = pickerState.downloadProgress,
+                        videoDownloadProgress = pickerState.videoDownloadProgress,
+                        onCancel = {
+                            pickerViewModel.cancelDownload()
+                        }
+                    )
+                }
+
+                pickerState.isProcessingVideos -> {
+                    DownloadingScreen(
+                        progress = pickerState.downloadProgress,
+                        videoDownloadProgress = pickerState.videoDownloadProgress,
+                        videoProcessingProgress = pickerState.videoProcessingProgress,
                         onCancel = {
                             pickerViewModel.cancelDownload()
                         }
@@ -387,6 +412,8 @@ private fun FirstTimeSetupScreen(
 @Composable
 private fun DownloadingScreen(
     progress: Pair<Int, Int>?,
+    videoDownloadProgress: Triple<Int, Int, String>? = null,
+    videoProcessingProgress: Triple<Int, Int, String>? = null,
     onCancel: () -> Unit = {}
 ) {
     Column(
@@ -396,8 +423,15 @@ private fun DownloadingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Main title based on current phase
+        val title = when {
+            videoProcessingProgress != null -> "Processing Videos..."
+            videoDownloadProgress != null -> "Downloading Videos..."
+            else -> "Downloading Photos..."
+        }
+
         Text(
-            text = "Downloading Photos...",
+            text = title,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = FunBlue,
@@ -415,21 +449,75 @@ private fun DownloadingScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Photos progress (always show if completed or in progress)
         if (progress != null) {
             Text(
-                text = "${progress.first} of ${progress.second} photos",
+                text = "Photos: ${progress.first} of ${progress.second} ✅",
+                fontSize = 16.sp,
+                color = if (videoDownloadProgress != null || videoProcessingProgress != null) PurpleGrey40 else PurpleGrey40
+            )
+
+            LinearProgressIndicator(
+                progress = 1f, // Photos are complete when we're doing videos
+                modifier = Modifier.fillMaxWidth(),
+                color = if (videoDownloadProgress != null || videoProcessingProgress != null) PurpleGrey40 else FunBlue
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Video download progress
+        if (videoDownloadProgress != null) {
+            Text(
+                text = "Downloading: ${videoDownloadProgress.first} of ${videoDownloadProgress.second} videos",
                 fontSize = 16.sp,
                 color = PurpleGrey40
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = videoDownloadProgress.third,
+                fontSize = 12.sp,
+                color = PurpleGrey40,
+                maxLines = 1
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             LinearProgressIndicator(
-                progress = progress.first.toFloat() / progress.second.toFloat(),
+                progress = videoDownloadProgress.first.toFloat() / videoDownloadProgress.second.toFloat(),
                 modifier = Modifier.fillMaxWidth(),
-                color = FunBlue
+                color = FunOrange
             )
-        } else {
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Video processing progress
+        if (videoProcessingProgress != null) {
+            Text(
+                text = "Processing: ${videoProcessingProgress.first} of ${videoProcessingProgress.second} videos",
+                fontSize = 16.sp,
+                color = PurpleGrey40
+            )
+
+            Text(
+                text = videoProcessingProgress.third,
+                fontSize = 12.sp,
+                color = PurpleGrey40,
+                maxLines = 1
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LinearProgressIndicator(
+                progress = videoProcessingProgress.first.toFloat() / videoProcessingProgress.second.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+                color = Purple40
+            )
+        }
+
+        // Show spinner if no specific progress available
+        if (progress == null && videoDownloadProgress == null && videoProcessingProgress == null) {
             CircularProgressIndicator(
                 color = FunBlue
             )
@@ -493,7 +581,7 @@ private fun PhotoViewerTabs(
                 ) {
                     itemsIndexed(photos) { index, photo ->
                         AsyncImage(
-                            model = File(photo.localPath),
+                            model = java.io.File(photo.localPath),
                             contentDescription = photo.filename,
                             modifier = Modifier
                                 .aspectRatio(1f)
@@ -618,9 +706,7 @@ private fun PatchworkGrid(
                 // Fix the "mirrored" appearance when rotation > 90°
                 val flipScale = if (rotation > 90f) -1f else 1f
 
-                AsyncImage(
-                    model = File(photo.localPath),
-                    contentDescription = photo.filename,
+                Box(
                     modifier = Modifier
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(8.dp))
@@ -631,16 +717,67 @@ private fun PatchworkGrid(
                         }
                         .clickable {
                             onPhotoClick(originalIndex, displayIndex)
-                        },
-                    contentScale = ContentScale.Crop
-                )
+                        }
+                ) {
+                    AsyncImage(
+                        model = java.io.File(photo.localPath),
+                        contentDescription = photo.filename,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Video indicator overlay (not affected by rotation)
+                    if (photo.isVideo) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .graphicsLayer {
+                                    // Counter-rotate to keep indicator upright during animation
+                                    rotationY = -rotation
+                                    scaleX = 1f / flipScale // Counter the flip scale
+                                }
+                                .background(
+                                    Color.Black.copy(alpha = 0.7f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = "Video",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(10.dp)
+                                )
+
+                                photo.videoDurationMs?.let { duration ->
+                                    val totalSeconds = duration / 1000
+                                    if (totalSeconds > 0) {
+                                        val minutes = totalSeconds / 60
+                                        val seconds = totalSeconds % 60
+                                        Text(
+                                            text = if (minutes > 0) "${minutes}:${seconds.toString().padStart(2, '0')}" else "${seconds}s",
+                                            color = Color.White,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
         // Hidden images for preloading
         preloadedPhotos.forEach { (_, photo) ->
             AsyncImage(
-                model = File(photo.localPath),
+                model = java.io.File(photo.localPath),
                 contentDescription = null,
                 modifier = Modifier
                     .size(1.dp) // Tiny invisible size
@@ -686,17 +823,61 @@ private fun LocalPhotoGrid(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             itemsIndexed(photos) { index, photo ->
-                AsyncImage(
-                    model = File(photo.localPath),
-                    contentDescription = photo.filename,
+                Box(
                     modifier = Modifier
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable {
                             onPhotoClick(index)
-                        },
-                    contentScale = ContentScale.Crop
-                )
+                        }
+                ) {
+                    AsyncImage(
+                        model = java.io.File(photo.localPath),
+                        contentDescription = photo.filename,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Video indicator overlay
+                    if (photo.isVideo) {
+                        println("🎬 Grid - Video indicator for ${photo.filename}")
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(6.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.7f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = "Video",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+
+                                photo.videoDurationMs?.let { duration ->
+                                    val minutes = duration / 60000
+                                    val seconds = (duration % 60000) / 1000
+                                    if (minutes > 0 || seconds > 0) {
+                                        Text(
+                                            text = if (minutes > 0) "${minutes}:${seconds.toString().padStart(2, '0')}" else "${seconds}s",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -710,14 +891,6 @@ fun LocalPhotoViewer(
 ) {
     val photo = photos[initialIndex]
 
-    // Zoom and pan state
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-
-    // Dismiss gesture state
-    var dismissOffset by remember { mutableFloatStateOf(0f) }
-    val dismissThreshold = 150f // Lower threshold for easier testing
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -727,99 +900,29 @@ fun LocalPhotoViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(
-                    alpha = 1f - maxOf(
-                        (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(0f, 0.8f), // Swipe dismiss fade
-                        if (scale < 1f) ((1f - scale) / 0.2f).coerceIn(0f, 0.8f) else 0f // Zoom out fade (0.8f to 1f range)
-                    )
-                ))
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        do {
-                            val event = awaitPointerEvent()
-                            val changes = event.changes
-
-                            if (changes.size == 1) {
-                                // Single finger - handle dismiss or pan
-                                val change = changes.first()
-                                if (change.pressed) {
-                                    val delta = change.position - change.previousPosition
-
-                                    if (scale <= 1f) {
-                                        // Not zoomed - vertical drag for dismiss
-                                        dismissOffset += delta.y
-                                    } else {
-                                        // Zoomed - pan around image
-                                        offset = Offset(
-                                            x = (offset.x + delta.x).coerceIn(-size.width.toFloat() * (scale - 1) / 2, size.width.toFloat() * (scale - 1) / 2),
-                                            y = (offset.y + delta.y).coerceIn(-size.height.toFloat() * (scale - 1) / 2, size.height.toFloat() * (scale - 1) / 2)
-                                        )
-                                    }
-                                }
-                            } else if (changes.size == 2) {
-                                // Two fingers - handle zoom
-                                val change1 = changes[0]
-                                val change2 = changes[1]
-
-                                if (change1.pressed && change2.pressed) {
-                                    val currentDistance = (change1.position - change2.position).getDistance()
-                                    val previousDistance = (change1.previousPosition - change2.previousPosition).getDistance()
-
-                                    if (previousDistance > 0) {
-                                        val zoomChange = currentDistance / previousDistance
-                                        val newScale = (scale * zoomChange).coerceIn(0.5f, 5f) // Allow zoom out to 0.5x
-                                        scale = newScale
-
-                                        // Reset pan when at normal zoom
-                                        if (scale <= 1f) {
-                                            offset = Offset.Zero
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Check for gesture end
-                            if (changes.none { it.pressed }) {
-                                // Gesture ended - check dismiss conditions
-                                if (scale < 0.8f) {
-                                    // Zoomed out too far - dismiss
-                                    onDismiss()
-                                } else if (scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold) {
-                                    // Swiped far enough - dismiss
-                                    onDismiss()
-                                } else {
-                                    // Reset to normal state
-                                    if (scale < 1f) {
-                                        scale = 1f // Snap back to normal zoom
-                                    }
-                                    dismissOffset = 0f
-                                }
-                            }
-
-                        } while (changes.any { it.pressed })
-                    }
-                }
+                .background(Color.Black)
         ) {
-            AsyncImage(
-                model = File(photo.localPath),
-                contentDescription = photo.filename,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .offset { IntOffset(0, dismissOffset.roundToInt()) }
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offset.x,
-                        translationY = offset.y
-                    ),
-                contentScale = ContentScale.Fit
-            )
+            // Show video or image based on media type
+            println("🎬 LocalPhotoViewer - Photo: ${photo.filename}, isVideo: ${photo.isVideo}, videoPath: ${photo.videoPath}")
+            if (photo.isVideo && photo.videoPath != null) {
+                println("🎬 Showing VideoViewer for ${photo.filename}")
+                VideoViewer(
+                    photo = photo,
+                    onDismiss = onDismiss,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                println("🖼️ Showing ImageViewer for ${photo.filename} (isVideo: ${photo.isVideo}, hasVideoPath: ${photo.videoPath != null})")
+                ImageViewer(
+                    photo = photo,
+                    onDismiss = onDismiss,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // Close button
             IconButton(
-                onClick = {
-                    onDismiss()
-                },
+                onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
@@ -835,24 +938,258 @@ fun LocalPhotoViewer(
                 )
             }
 
-            // Photo name overlay - only show when not zoomed
-            if (scale <= 1.1f) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(
-                            Color.Black.copy(alpha = 0.7f)
-                        )
-                        .padding(16.dp)
-                ) {
+            // Media info overlay
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(16.dp)
+            ) {
+                Column {
                     Text(
                         text = photo.filename,
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )
+
+                    if (photo.isVideo) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Video",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(16.dp)
+                            )
+
+                            photo.videoDurationMs?.let { duration ->
+                                val minutes = duration / 60000
+                                val seconds = (duration % 60000) / 1000
+                                Text(
+                                    text = String.format("%02d:%02d", minutes, seconds),
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            photo.videoWidth?.let { width ->
+                                photo.videoHeight?.let { height ->
+                                    Text(
+                                        text = "${width}×${height}",
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VideoViewer(
+    photo: LocalPhoto,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isPlaying by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
+    var videoView by remember { mutableStateOf<VideoView?>(null) }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                VideoView(context).apply {
+                    val videoUri = Uri.fromFile(java.io.File(photo.videoPath!!))
+                    setVideoURI(videoUri)
+
+                    // Set up media controller
+                    val mediaController = MediaController(context)
+                    mediaController.setAnchorView(this)
+                    setMediaController(mediaController)
+
+                    // Handle video events
+                    setOnPreparedListener { mediaPlayer ->
+                        isPlaying = false
+                        // Auto-start video
+                        start()
+                        isPlaying = true
+                    }
+
+                    setOnCompletionListener {
+                        isPlaying = false
+                    }
+
+                    setOnErrorListener { _, _, _ ->
+                        println("❌ Video playback error for ${photo.filename}")
+                        false
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable {
+                    showControls = !showControls
+                }
+        ) { view ->
+            videoView = view
+            // Update playing state when video view changes
+            if (view.isPlaying != isPlaying) {
+                isPlaying = view.isPlaying
+            }
+        }
+
+        // Custom play/pause overlay with actual functionality
+        if (showControls && !isPlaying) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable {
+                        // Actually start the video when the play button is tapped
+                        videoView?.let { view ->
+                            if (!view.isPlaying) {
+                                view.start()
+                                isPlaying = true
+                                println("▶️ Video started via custom play button")
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Play",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.6f),
+                            RoundedCornerShape(50)
+                        )
+                        .padding(16.dp)
+                        .clickable {
+                            // Also handle click on the icon itself
+                            videoView?.let { view ->
+                                if (!view.isPlaying) {
+                                    view.start()
+                                    isPlaying = true
+                                    println("▶️ Video started via play icon")
+                                }
+                            }
+                        }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageViewer(
+    photo: LocalPhoto,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Zoom and pan state
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // Dismiss gesture state
+    var dismissOffset by remember { mutableFloatStateOf(0f) }
+    val dismissThreshold = 150f
+
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(
+                alpha = 1f - maxOf(
+                    (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(0f, 0.8f), // Swipe dismiss fade
+                    if (scale < 1f) ((1f - scale) / 0.2f).coerceIn(0f, 0.8f) else 0f // Zoom out fade
+                )
+            ))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    do {
+                        val event = awaitPointerEvent()
+                        val changes = event.changes
+
+                        if (changes.size == 1) {
+                            // Single finger - handle dismiss or pan
+                            val change = changes.first()
+                            if (change.pressed) {
+                                val delta = change.position - change.previousPosition
+
+                                if (scale <= 1f) {
+                                    // Not zoomed - vertical drag for dismiss
+                                    dismissOffset += delta.y
+                                } else {
+                                    // Zoomed - pan around image
+                                    offset = Offset(
+                                        x = (offset.x + delta.x).coerceIn(-size.width.toFloat() * (scale - 1) / 2, size.width.toFloat() * (scale - 1) / 2),
+                                        y = (offset.y + delta.y).coerceIn(-size.height.toFloat() * (scale - 1) / 2, size.height.toFloat() * (scale - 1) / 2)
+                                    )
+                                }
+                            }
+                        } else if (changes.size == 2) {
+                            // Two fingers - handle zoom
+                            val change1 = changes[0]
+                            val change2 = changes[1]
+
+                            if (change1.pressed && change2.pressed) {
+                                val currentDistance = (change1.position - change2.position).getDistance()
+                                val previousDistance = (change1.previousPosition - change2.previousPosition).getDistance()
+
+                                if (previousDistance > 0) {
+                                    val zoomChange = currentDistance / previousDistance
+                                    val newScale = (scale * zoomChange).coerceIn(0.5f, 5f)
+                                    scale = newScale
+
+                                    // Reset pan when at normal zoom
+                                    if (scale <= 1f) {
+                                        offset = Offset.Zero
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check for gesture end
+                        if (changes.none { it.pressed }) {
+                            // Gesture ended - check dismiss conditions
+                            if (scale < 0.8f) {
+                                onDismiss()
+                            } else if (scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold) {
+                                onDismiss()
+                            } else {
+                                // Reset to normal state
+                                if (scale < 1f) {
+                                    scale = 1f
+                                }
+                                dismissOffset = 0f
+                            }
+                        }
+
+                    } while (changes.any { it.pressed })
+                }
+            }
+    ) {
+        AsyncImage(
+            model = java.io.File(photo.localPath),
+            contentDescription = photo.filename,
+            modifier = Modifier
+                .fillMaxSize()
+                .offset { IntOffset(0, dismissOffset.roundToInt()) }
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
+            contentScale = ContentScale.Fit
+        )
     }
 }

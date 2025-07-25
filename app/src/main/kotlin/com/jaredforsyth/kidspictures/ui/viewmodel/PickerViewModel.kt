@@ -30,7 +30,11 @@ data class PickerState(
     val isLoadingLocalPhotos: Boolean = true, // Start as true since we load on init
     val isFetchingMediaItems: Boolean = false, // Loading during /mediaItems query
     val isDownloading: Boolean = false,
-    val downloadProgress: Pair<Int, Int>? = null, // current/total
+    val downloadProgress: Pair<Int, Int>? = null, // current/total photos
+    val isDownloadingVideos: Boolean = false,
+    val videoDownloadProgress: Triple<Int, Int, String>? = null, // current/total/filename
+    val isProcessingVideos: Boolean = false,
+    val videoProcessingProgress: Triple<Int, Int, String>? = null, // current/total/filename
     val pickerUri: String? = null,
     val isPolling: Boolean = false,
     val viewMode: ViewMode = ViewMode.GRID,
@@ -170,15 +174,35 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         _pickerState.value = _pickerState.value.copy(
                             downloadProgress = Pair(current, total)
                         )
+                    },
+                    onVideoDownloadProgress = { current, total, filename ->
+                        println("🎬 Video download progress: $current/$total - $filename")
+                        _pickerState.value = _pickerState.value.copy(
+                            isDownloading = false, // Photos are done
+                            isDownloadingVideos = true,
+                            videoDownloadProgress = Triple(current, total, filename)
+                        )
+                    },
+                    onVideoProcessingProgress = { current, total, filename ->
+                        println("🔄 Video processing progress: $current/$total - $filename")
+                        _pickerState.value = _pickerState.value.copy(
+                            isDownloadingVideos = false, // Video downloads are done
+                            isProcessingVideos = true,
+                            videoProcessingProgress = Triple(current, total, filename)
+                        )
                     }
                 )
 
                 result.fold(
                     onSuccess = { localPhotos ->
-                        println("✅ Download completed successfully: ${localPhotos.size} photos saved")
+                        println("✅ Download completed successfully: ${localPhotos.size} items saved")
                         _pickerState.value = _pickerState.value.copy(
                             isDownloading = false,
+                            isDownloadingVideos = false,
+                            isProcessingVideos = false,
                             downloadProgress = null,
+                            videoDownloadProgress = null,
+                            videoProcessingProgress = null,
                             localPhotos = localPhotos,
                             hasLocalPhotos = true,
                             selectedMediaItems = emptyList(), // Clear temporary selection
@@ -191,7 +215,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         error.printStackTrace()
                         _pickerState.value = _pickerState.value.copy(
                             isDownloading = false,
+                            isDownloadingVideos = false,
+                            isProcessingVideos = false,
                             downloadProgress = null,
+                            videoDownloadProgress = null,
+                            videoProcessingProgress = null,
                             error = "Download failed: ${error.message}"
                         )
                     }
@@ -200,7 +228,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 println("🛑 Download cancelled by user")
                 _pickerState.value = _pickerState.value.copy(
                     isDownloading = false,
+                    isDownloadingVideos = false,
+                    isProcessingVideos = false,
                     downloadProgress = null,
+                    videoDownloadProgress = null,
+                    videoProcessingProgress = null,
                     selectedMediaItems = emptyList(),
                     currentSession = null,
                     error = null // Clear error on cancellation
@@ -211,7 +243,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 e.printStackTrace()
                 _pickerState.value = _pickerState.value.copy(
                     isDownloading = false,
+                    isDownloadingVideos = false,
+                    isProcessingVideos = false,
                     downloadProgress = null,
+                    videoDownloadProgress = null,
+                    videoProcessingProgress = null,
                     error = "Download error: ${e.message}"
                 )
             }
