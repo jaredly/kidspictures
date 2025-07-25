@@ -493,7 +493,7 @@ private fun DownloadingScreen(
             onClick = onCancel,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = FunBlue)
         ) {
-            Text("Stop & Keep Photos")
+            Text("Cancel download")
         }
     }
 }
@@ -907,8 +907,8 @@ fun LocalPhotoViewer(photos: List<LocalPhoto>, initialIndex: Int, onDismiss: () 
                                 )
                             }
 
-                            photo.videoWidth?.let { width ->
-                                photo.videoHeight?.let { height ->
+                            photo.width?.let { width ->
+                                photo.height?.let { height ->
                                     Text(
                                         text = "${width}×${height}",
                                         color = Color.White.copy(alpha = 0.6f),

@@ -40,8 +40,8 @@ data class LocalPhoto(
     val videoPath: String? = null, // Path to processed video file
     val originalVideoUrl: String? = null, // Original video URL with =dv
     val videoDurationMs: Long? = null,
-    val videoWidth: Int? = null,
-    val videoHeight: Int? = null
+    val width: Int? = null,
+    val height: Int? = null
 )
 
 class LocalPhotoRepository(private val context: Context) {
@@ -284,7 +284,9 @@ class LocalPhotoRepository(private val context: Context) {
                     originalUrl = mediaItem.mediaFile.baseUrl ?: "",
                     mimeType = mediaItem.mediaFile.mimeType ?: "image/jpeg",
                     isVideo = isVideo,
-                    originalVideoUrl = if (isVideo) mediaItem.mediaFile.baseUrl else null
+                    originalVideoUrl = if (isVideo) mediaItem.mediaFile.baseUrl else null,
+                    width = mediaItem.mediaFile.mediaFileMetadata.width,
+                    height = mediaItem.mediaFile.mediaFileMetadata.height,
                 )
 
             println("🎯 Created LocalPhoto: ${localPhoto.filename}")
@@ -752,8 +754,8 @@ class LocalPhotoRepository(private val context: Context) {
             localPhoto.copy(
                 videoPath = videoFile.absolutePath,
                 videoDurationMs = duration,
-                videoWidth = width,
-                videoHeight = height
+                width = width,
+                height = height
             )
         } catch (e: Exception) {
             println("❌ Failed to get video metadata: ${e.message}")
@@ -808,10 +810,10 @@ class LocalPhotoRepository(private val context: Context) {
                 val videoDurationMs =
                     if (jsonObject.isNull("videoDurationMs")) null
                     else jsonObject.optLong("videoDurationMs")
-                val videoWidth =
-                    if (jsonObject.isNull("videoWidth")) null else jsonObject.optInt("videoWidth")
-                val videoHeight =
-                    if (jsonObject.isNull("videoHeight")) null else jsonObject.optInt("videoHeight")
+                val width =
+                    if (jsonObject.isNull("width")) null else jsonObject.optInt("width")
+                val height =
+                    if (jsonObject.isNull("height")) null else jsonObject.optInt("height")
 
                 // Verify thumbnail file still exists
                 if (File(localPath).exists()) {
@@ -826,8 +828,8 @@ class LocalPhotoRepository(private val context: Context) {
                             videoPath = videoPath,
                             originalVideoUrl = originalVideoUrl,
                             videoDurationMs = videoDurationMs,
-                            videoWidth = videoWidth,
-                            videoHeight = videoHeight
+                            width = width,
+                            height = height
                         )
                     )
                 }
@@ -858,10 +860,10 @@ class LocalPhotoRepository(private val context: Context) {
                 val originalVideoUrlValue =
                     if (photo.originalVideoUrl != null) """"$safeOriginalVideoUrl"""" else "null"
                 val durationValue = photo.videoDurationMs?.toString() ?: "null"
-                val widthValue = photo.videoWidth?.toString() ?: "null"
-                val heightValue = photo.videoHeight?.toString() ?: "null"
+                val widthValue = photo.width?.toString() ?: "null"
+                val heightValue = photo.height?.toString() ?: "null"
 
-                """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"videoWidth":$widthValue,"videoHeight":$heightValue}"""
+                """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"width":$widthValue,"height":$heightValue}"""
             }
 
         return "[${jsonObjects.joinToString(",")}]"
