@@ -2,10 +2,13 @@ package com.jaredforsyth.kidspictures.data.repository
 
 import android.content.Context
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
+import android.view.Surface
+import java.nio.ByteBuffer
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -410,26 +413,161 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-    private fun transcodeVideo(inputPath: String, outputPath: String, targetWidth: Int, targetHeight: Int): Boolean {
+        private fun transcodeVideo(inputPath: String, outputPath: String, targetWidth: Int, targetHeight: Int): Boolean {
         return try {
-            println("🎞️ Transcoding video: $inputPath -> $outputPath")
-
-            // For now, we'll use a simple approach - just copy the file
-            // In a production app, you'd want to use MediaCodec for proper transcoding
-            // This is a complex operation that would require significant additional code
+            println("🎞️ Transcoding video: $inputPath -> $outputPath (${targetWidth}x${targetHeight})")
 
             val inputFile = File(inputPath)
             val outputFile = File(outputPath)
 
-            // Simple fallback: copy the original file if transcoding is too complex
-            inputFile.copyTo(outputFile, overwrite = true)
+            // Set up MediaExtractor to read the input file
+            val extractor = MediaExtractor()
+            extractor.setDataSource(inputFile.absolutePath)
 
-            println("✅ Video copied (transcoding skipped for simplicity)")
+            // Find video track
+            var videoTrackIndex = -1
+            var videoFormat: MediaFormat? = null
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME)
+                if (mime?.startsWith("video/") == true) {
+                    videoTrackIndex = i
+                    videoFormat = format
+                    break
+                }
+            }
+
+            if (videoTrackIndex == -1 || videoFormat == null) {
+                println("❌ No video track found")
+                extractor.release()
+                return false
+            }
+
+            // Set up output format with compression settings
+            val outputFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, targetWidth, targetHeight).apply {
+                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                setInteger(MediaFormat.KEY_BIT_RATE, 500_000) // 500kbps - very compressed for storage savings
+                setInteger(MediaFormat.KEY_FRAME_RATE, 24) // Lower frame rate
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2) // Key frame every 2 seconds
+            }
+
+            // Set up MediaMuxer
+            val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
+            // Set up encoder
+            val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            encoder.configure(outputFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            val inputSurface = encoder.createInputSurface()
+            encoder.start()
+
+            // Set up decoder
+            extractor.selectTrack(videoTrackIndex)
+            val decoder = MediaCodec.createDecoderByType(videoFormat.getString(MediaFormat.KEY_MIME)!!)
+            decoder.configure(videoFormat, inputSurface, null, 0)
+            decoder.start()
+
+            // Start transcoding process
+
+            val decoderBufferInfo = MediaCodec.BufferInfo()
+            val encoderBufferInfo = MediaCodec.BufferInfo()
+
+            var decoderDone = false
+            var encoderDone = false
+            var muxerStarted = false
+            var videoTrackOut = -1
+
+            while (!encoderDone) {
+                // Feed decoder
+                if (!decoderDone) {
+                    val inputBufferIndex = decoder.dequeueInputBuffer(0)
+                    if (inputBufferIndex >= 0) {
+                        val inputBuffer = decoder.getInputBuffer(inputBufferIndex)
+                        if (inputBuffer != null) {
+                            val sampleSize = extractor.readSampleData(inputBuffer, 0)
+                            if (sampleSize < 0) {
+                                decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                decoderDone = true
+                            } else {
+                                decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
+                                extractor.advance()
+                            }
+                        }
+                    }
+                }
+
+                // Drain decoder (this feeds the encoder via Surface)
+                val decoderOutputIndex = decoder.dequeueOutputBuffer(decoderBufferInfo, 0)
+                if (decoderOutputIndex >= 0) {
+                    val doRender = decoderBufferInfo.size != 0
+                    decoder.releaseOutputBuffer(decoderOutputIndex, doRender)
+                    if ((decoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        encoder.signalEndOfInputStream()
+                    }
+                }
+
+                // Drain encoder
+                val encoderOutputIndex = encoder.dequeueOutputBuffer(encoderBufferInfo, 0)
+                if (encoderOutputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (muxerStarted) {
+                        throw RuntimeException("Format changed after muxer started")
+                    }
+                    val newFormat = encoder.outputFormat
+                    videoTrackOut = muxer.addTrack(newFormat)
+                    muxer.start()
+                    muxerStarted = true
+                                } else if (encoderOutputIndex >= 0) {
+                    val encodedData = encoder.getOutputBuffer(encoderOutputIndex)
+                    if (encodedData != null) {
+                        if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                            encoderBufferInfo.size = 0
+                        }
+
+                        if (encoderBufferInfo.size != 0) {
+                            if (!muxerStarted) {
+                                throw RuntimeException("Muxer not started")
+                            }
+                            encodedData.position(encoderBufferInfo.offset)
+                            encodedData.limit(encoderBufferInfo.offset + encoderBufferInfo.size)
+                            muxer.writeSampleData(videoTrackOut, encodedData, encoderBufferInfo)
+                        }
+                    }
+
+                    encoder.releaseOutputBuffer(encoderOutputIndex, false)
+
+                    if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        encoderDone = true
+                    }
+                }
+            }
+
+            // Clean up
+            decoder.stop()
+            decoder.release()
+            encoder.stop()
+            encoder.release()
+            extractor.release()
+            muxer.stop()
+            muxer.release()
+            inputSurface.release()
+
+            val inputSize = inputFile.length()
+            val outputSize = outputFile.length()
+            val compressionRatio = ((inputSize - outputSize).toFloat() / inputSize * 100).toInt()
+            println("✅ Video transcoded: ${inputSize/1024}KB -> ${outputSize/1024}KB (${compressionRatio}% smaller)")
+
             true
         } catch (e: Exception) {
             println("❌ Video transcoding failed: ${e.message}")
             e.printStackTrace()
-            false
+            // Fallback: copy original file if transcoding fails
+            try {
+                File(inputPath).copyTo(File(outputPath), overwrite = true)
+                println("⚠️ Fallback: copied original video without transcoding")
+                true
+            } catch (fallbackError: Exception) {
+                println("❌ Even fallback copy failed: ${fallbackError.message}")
+                false
+            }
         }
     }
 
