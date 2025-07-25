@@ -885,38 +885,38 @@ fun LocalPhotoViewer(photos: List<LocalPhoto>, initialIndex: Int, onDismiss: () 
                         fontSize = 12.sp
                     )
 
-                    if (photo.isVideo) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = "Video",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(16.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        photo.videoDurationMs?.let { duration ->
+                            val minutes = duration / 60000
+                            val seconds = (duration % 60000) / 1000
+                            Text(
+                                text = String.format("%02d:%02d", minutes, seconds),
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 10.sp
                             )
+                        }
 
-                            photo.videoDurationMs?.let { duration ->
-                                val minutes = duration / 60000
-                                val seconds = (duration % 60000) / 1000
-                                Text(
-                                    text = String.format("%02d:%02d", minutes, seconds),
-                                    color = Color.White.copy(alpha = 0.6f),
-                                    fontSize = 10.sp
-                                )
-                            }
-
+                        val sizeText = buildString {
                             photo.width?.let { width ->
                                 photo.height?.let { height ->
-                                    Text(
-                                        text = "${width}×${height}",
-                                        color = Color.White.copy(alpha = 0.6f),
-                                        fontSize = 10.sp
-                                    )
+                                    append("${width}×${height}")
+                                    append(" • ")
                                 }
                             }
+                            photo.mediaSizeMb?.let { sizeMb ->
+                                append(if (sizeMb < 1f) "%.1f".format(sizeMb) else "%.0f".format(sizeMb))
+                                append("MB")
+                            }
                         }
+
+                        Text(
+                            text = sizeText,
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 10.sp
+                        )
                     }
                 }
             }

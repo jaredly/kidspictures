@@ -41,7 +41,8 @@ data class LocalPhoto(
     val originalVideoUrl: String? = null, // Original video URL with =dv
     val videoDurationMs: Long? = null,
     val width: Int? = null,
-    val height: Int? = null
+    val height: Int? = null,
+    val mediaSizeMb: Float? = null
 )
 
 class LocalPhotoRepository(private val context: Context) {
@@ -287,6 +288,7 @@ class LocalPhotoRepository(private val context: Context) {
                     originalVideoUrl = if (isVideo) mediaItem.mediaFile.baseUrl else null,
                     width = mediaItem.mediaFile.mediaFileMetadata.width,
                     height = mediaItem.mediaFile.mediaFileMetadata.height,
+                    mediaSizeMb = fileSize.toFloat() / (1024 * 1024)
                 )
 
             println("🎯 Created LocalPhoto: ${localPhoto.filename}")
@@ -755,7 +757,8 @@ class LocalPhotoRepository(private val context: Context) {
                 videoPath = videoFile.absolutePath,
                 videoDurationMs = duration,
                 width = width,
-                height = height
+                height = height,
+                mediaSizeMb = videoFile.length().toFloat() / (1024 * 1024)
             )
         } catch (e: Exception) {
             println("❌ Failed to get video metadata: ${e.message}")
@@ -814,6 +817,8 @@ class LocalPhotoRepository(private val context: Context) {
                     if (jsonObject.isNull("width")) null else jsonObject.optInt("width")
                 val height =
                     if (jsonObject.isNull("height")) null else jsonObject.optInt("height")
+                val mediaSizeMb =
+                    if (jsonObject.isNull("mediaSizeMb")) null else jsonObject.optDouble("mediaSizeMb")
 
                 // Verify thumbnail file still exists
                 if (File(localPath).exists()) {
@@ -829,7 +834,8 @@ class LocalPhotoRepository(private val context: Context) {
                             originalVideoUrl = originalVideoUrl,
                             videoDurationMs = videoDurationMs,
                             width = width,
-                            height = height
+                            height = height,
+                            mediaSizeMb = mediaSizeMb?.toFloat()
                         )
                     )
                 }
@@ -862,8 +868,9 @@ class LocalPhotoRepository(private val context: Context) {
                 val durationValue = photo.videoDurationMs?.toString() ?: "null"
                 val widthValue = photo.width?.toString() ?: "null"
                 val heightValue = photo.height?.toString() ?: "null"
+                val mediaSizeMbValue = photo.mediaSizeMb?.toString() ?: "null"
 
-                """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"width":$widthValue,"height":$heightValue}"""
+                """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"width":$widthValue,"height":$heightValue,"mediaSizeMb":$mediaSizeMbValue}"""
             }
 
         return "[${jsonObjects.joinToString(",")}]"
