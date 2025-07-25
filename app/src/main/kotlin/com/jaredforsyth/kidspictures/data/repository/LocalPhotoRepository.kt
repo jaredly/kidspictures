@@ -331,8 +331,8 @@ class LocalPhotoRepository(private val context: Context) {
                             outputStream.write(buffer, 0, bytesRead)
                             downloadedBytes += bytesRead
 
-                            // Report progress (but not too frequently to avoid UI spam)
-                            if (downloadedBytes % (64 * 1024) == 0L || downloadedBytes == totalBytes) {
+                            // Report progress every 32KB or at completion for smooth updates
+                            if (downloadedBytes % (32 * 1024) == 0L || downloadedBytes == totalBytes) {
                                 onProgress(downloadedBytes, totalBytes)
                             }
                         }

@@ -176,21 +176,19 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             downloadProgress = Pair(current, total)
                         )
                     },
-                    onVideoDownloadProgress = { current, total, filename, downloadedBytes, totalBytes ->
-                        // Calculate granular progress: completed videos + current video progress
-                        val completedProgress = (current - 1).toFloat() / total.toFloat()
+                                        onVideoDownloadProgress = { current, total, filename, downloadedBytes, totalBytes ->
+                        // Calculate individual video progress (0.0 to 1.0 for current video only)
                         val currentVideoProgress = if (totalBytes > 0) {
-                            (downloadedBytes.toFloat() / totalBytes.toFloat()) / total.toFloat()
+                            downloadedBytes.toFloat() / totalBytes.toFloat()
                         } else 0f
-                        val overallProgress = completedProgress + currentVideoProgress
-                        val progressPercent = (overallProgress * 100).toInt()
+                        val progressPercent = (currentVideoProgress * 100).toInt()
 
-                        println("🎬 Video download: $current/$total - $filename (${downloadedBytes}/${totalBytes} bytes, ${progressPercent}%)")
+                        println("🎬 Video download: $current/$total - $filename (${downloadedBytes}/${totalBytes} bytes, ${progressPercent}% of current video)")
                         _pickerState.value = _pickerState.value.copy(
                             isDownloading = false, // Photos are done
                             isDownloadingVideos = true,
                             videoDownloadProgress = Triple(current, total, filename),
-                            videoDownloadDetailedProgress = overallProgress
+                            videoDownloadDetailedProgress = currentVideoProgress
                         )
                     },
                     onVideoProcessingProgress = { current, total, filename ->

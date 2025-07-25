@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -181,6 +182,7 @@ fun MainScreen(
                     DownloadingScreen(
                         progress = pickerState.downloadProgress,
                         videoDownloadProgress = pickerState.videoDownloadProgress,
+                        videoDownloadDetailedProgress = pickerState.videoDownloadDetailedProgress,
                         onCancel = {
                             pickerViewModel.cancelDownload()
                         }
@@ -191,6 +193,7 @@ fun MainScreen(
                     DownloadingScreen(
                         progress = pickerState.downloadProgress,
                         videoDownloadProgress = pickerState.videoDownloadProgress,
+                        videoDownloadDetailedProgress = pickerState.videoDownloadDetailedProgress,
                         videoProcessingProgress = pickerState.videoProcessingProgress,
                         onCancel = {
                             pickerViewModel.cancelDownload()
@@ -482,10 +485,20 @@ private fun DownloadingScreen(
                 maxLines = 1
             )
 
+            // Show streaming progress if available
+            if (videoDownloadDetailedProgress != null) {
+                Text(
+                    text = "${(videoDownloadDetailedProgress * 100).toInt()}% of current video",
+                    fontSize = 11.sp,
+                    color = FunOrange,
+                    fontStyle = FontStyle.Italic
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             LinearProgressIndicator(
-                progress = videoDownloadProgress.first.toFloat() / videoDownloadProgress.second.toFloat(),
+                progress = videoDownloadDetailedProgress ?: (videoDownloadProgress.first.toFloat() / videoDownloadProgress.second.toFloat()),
                 modifier = Modifier.fillMaxWidth(),
                 color = FunOrange
             )
