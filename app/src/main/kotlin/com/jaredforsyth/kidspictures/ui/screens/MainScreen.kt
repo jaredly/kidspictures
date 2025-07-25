@@ -1045,21 +1045,22 @@ private fun VideoViewer(
             }
         }
 
-        // Custom play/pause overlay with actual functionality
+        // Custom play/pause overlay (optional - MediaController already provides controls)
         if (showControls && !isPlaying) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.3f))
                     .clickable {
-                        // Actually start the video when the play button is tapped
-                        videoView?.let { view ->
-                            if (!view.isPlaying) {
-                                view.start()
-                                isPlaying = true
-                                println("▶️ Video started via custom play button")
+                        // This will be handled by the VideoView's MediaController
+                            videoView?.let { view ->
+                                if (!view.isPlaying) {
+                                    view.start()
+                                    isPlaying = true
+                                    println("▶️ Video started via play icon")
+                                }
                             }
-                        }
+
                     },
                 contentAlignment = Alignment.Center
             ) {

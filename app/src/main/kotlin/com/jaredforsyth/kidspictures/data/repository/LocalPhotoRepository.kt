@@ -27,6 +27,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "local_photos")
 
@@ -476,35 +478,47 @@ class LocalPhotoRepository(private val context: Context) {
 
     private suspend fun savePhotoMetadata(photos: List<LocalPhoto>) {
         val metadataJson = serializePhotoMetadata(photos)
+        println("💾 Saving photo metadata:")
+        println("📊 Photos count: ${photos.size}")
+        photos.forEach { photo ->
+            println("📷 ${photo.filename}: isVideo=${photo.isVideo}, videoPath=${photo.videoPath}")
+        }
+        println("💾 JSON: $metadataJson")
         context.dataStore.edit { preferences ->
             preferences[PHOTO_METADATA_KEY] = metadataJson
         }
     }
 
-    private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
+        private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
         val photos = mutableListOf<LocalPhoto>()
 
         if (json.isBlank() || json == "[]") return emptyList()
 
-        try {
-            // Parse both old format (for backward compatibility) and new format with video fields
-            val oldFormatRegex = """"id":"([^"]+)","filename":"([^"]+)","localPath":"([^"]+)","originalUrl":"([^"]*)","mimeType":"([^"]+)"""".toRegex()
-            val newFormatRegex = """"id":"([^"]+)","filename":"([^"]+)","localPath":"([^"]+)","originalUrl":"([^"]*)","mimeType":"([^"]+)","isVideo":(true|false)(?:,"videoPath":"([^"]*)","originalVideoUrl":"([^"]*)","videoDurationMs":(\d+|null),"videoWidth":(\d+|null),"videoHeight":(\d+|null))?"""".toRegex()
+        println("📖 Loading photo metadata:")
+        println("📊 JSON: $json")
 
-            // Try new format first
-            val newMatches = newFormatRegex.findAll(json)
-            for (match in newMatches) {
-                val id = match.groupValues[1]
-                val filename = match.groupValues[2]
-                val localPath = match.groupValues[3]
-                val originalUrl = match.groupValues[4]
-                val mimeType = match.groupValues[5]
-                val isVideo = match.groupValues[6] == "true"
-                val videoPath = match.groupValues.getOrNull(7)?.takeIf { it.isNotEmpty() }
-                val originalVideoUrl = match.groupValues.getOrNull(8)?.takeIf { it.isNotEmpty() }
-                val videoDurationMs = match.groupValues.getOrNull(9)?.takeIf { it != "null" }?.toLongOrNull()
-                val videoWidth = match.groupValues.getOrNull(10)?.takeIf { it != "null" }?.toIntOrNull()
-                val videoHeight = match.groupValues.getOrNull(11)?.takeIf { it != "null" }?.toIntOrNull()
+        try {
+            val jsonArray = JSONArray(json)
+            println("📖 Found ${jsonArray.length()} items in JSON")
+
+            for (i in 0 until jsonArray.length()) {
+                val jsonObject = jsonArray.getJSONObject(i)
+
+                val id = jsonObject.getString("id")
+                val filename = jsonObject.getString("filename")
+                val localPath = jsonObject.getString("localPath")
+                val originalUrl = jsonObject.getString("originalUrl")
+                val mimeType = jsonObject.getString("mimeType")
+
+                // Handle video fields (with defaults for backward compatibility)
+                val isVideo = jsonObject.optBoolean("isVideo", false)
+                val videoPath = if (jsonObject.isNull("videoPath")) null else jsonObject.optString("videoPath", null)
+                val originalVideoUrl = if (jsonObject.isNull("originalVideoUrl")) null else jsonObject.optString("originalVideoUrl", null)
+                val videoDurationMs = if (jsonObject.isNull("videoDurationMs")) null else jsonObject.optLong("videoDurationMs")
+                val videoWidth = if (jsonObject.isNull("videoWidth")) null else jsonObject.optInt("videoWidth")
+                val videoHeight = if (jsonObject.isNull("videoHeight")) null else jsonObject.optInt("videoHeight")
+
+                println("📖 Parsed: $filename -> isVideo=$isVideo, videoPath=$videoPath")
 
                 // Verify thumbnail file still exists
                 if (File(localPath).exists()) {
@@ -521,28 +535,18 @@ class LocalPhotoRepository(private val context: Context) {
                         videoWidth = videoWidth,
                         videoHeight = videoHeight
                     ))
-                }
-            }
-
-            // If no new format matches found, try old format for backward compatibility
-            if (photos.isEmpty()) {
-                val oldMatches = oldFormatRegex.findAll(json)
-                for (match in oldMatches) {
-                    val id = match.groupValues[1]
-                    val filename = match.groupValues[2]
-                    val localPath = match.groupValues[3]
-                    val originalUrl = match.groupValues[4]
-                    val mimeType = match.groupValues[5]
-
-                    // Verify file still exists
-                    if (File(localPath).exists()) {
-                        photos.add(LocalPhoto(id, filename, localPath, originalUrl, mimeType))
-                    }
+                } else {
+                    println("❌ Thumbnail file missing: $localPath")
                 }
             }
         } catch (e: Exception) {
             println("❌ Error parsing photo metadata: ${e.message}")
             e.printStackTrace()
+        }
+
+        println("📖 Final loaded photos:")
+        photos.forEach { photo ->
+            println("📷 ${photo.filename}: isVideo=${photo.isVideo}, videoPath=${photo.videoPath}")
         }
 
         return photos
@@ -561,19 +565,14 @@ class LocalPhotoRepository(private val context: Context) {
             val safeVideoPath = photo.videoPath?.replace("\"", "\\\"") ?: ""
             val safeOriginalVideoUrl = photo.originalVideoUrl?.replace("\"", "\\\"") ?: ""
 
-            val baseJson = """"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo}"""
+            // Always include all fields for consistency - simplifies parsing
+            val videoPathValue = if (photo.videoPath != null) """"$safeVideoPath"""" else "null"
+            val originalVideoUrlValue = if (photo.originalVideoUrl != null) """"$safeOriginalVideoUrl"""" else "null"
+            val durationValue = photo.videoDurationMs?.toString() ?: "null"
+            val widthValue = photo.videoWidth?.toString() ?: "null"
+            val heightValue = photo.videoHeight?.toString() ?: "null"
 
-            val videoJson = if (photo.isVideo) {
-                val videoPathJson = if (photo.videoPath != null) """"videoPath":"$safeVideoPath"""" else """"videoPath":null"""
-                val originalVideoUrlJson = if (photo.originalVideoUrl != null) """"originalVideoUrl":"$safeOriginalVideoUrl"""" else """"originalVideoUrl":null"""
-                val durationJson = """"videoDurationMs":${photo.videoDurationMs}"""
-                val widthJson = """"videoWidth":${photo.videoWidth}"""
-                val heightJson = """"videoHeight":${photo.videoHeight}"""
-
-                ",$videoPathJson,$originalVideoUrlJson,$durationJson,$widthJson,$heightJson"
-            } else ""
-
-            "{$baseJson$videoJson}"
+            """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"videoWidth":$widthValue,"videoHeight":$heightValue}"""
         }
 
         return "[${jsonObjects.joinToString(",")}]"
