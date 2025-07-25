@@ -51,28 +51,16 @@ fun PickerLaunchScreen(
                             onSignOut()
                         }
                     ) {
-                        Text(
-                            text = "Sign Out",
-                            color = Color.White
-                        )
+                        Text(text = "Sign Out", color = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = FunBlue
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = FunBlue)
             )
         }
     ) { paddingValues ->
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            color = LightBackground
-        ) {
+        Surface(modifier = Modifier.fillMaxSize().padding(paddingValues), color = LightBackground) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -80,11 +68,11 @@ fun PickerLaunchScreen(
                     pickerState.isLoading -> {
                         LoadingContent("Setting up Google Photos picker...")
                     }
-
                     pickerState.isPolling -> {
-                        LoadingContent("Waiting for your selection...\n\n💡 After selecting photos in Google Photos, return to this app!")
+                        LoadingContent(
+                            "Waiting for your selection...\n\n💡 After selecting photos in Google Photos, return to this app!"
+                        )
                     }
-
                     pickerState.pickerUri != null -> {
                         PickerReadyContent(
                             pickerUri = pickerState.pickerUri!!,
@@ -98,7 +86,6 @@ fun PickerLaunchScreen(
                             }
                         )
                     }
-
                     pickerState.error != null -> {
                         ErrorContent(
                             error = pickerState.error!!,
@@ -108,13 +95,10 @@ fun PickerLaunchScreen(
                             }
                         )
                     }
-
                     else -> {
                         WelcomeContent(
                             userName = pickerState.user?.displayName ?: "User",
-                            onStartPicker = {
-                                pickerViewModel.createPickerSession()
-                            }
+                            onStartPicker = { pickerViewModel.createPickerSession() }
                         )
                     }
                 }
@@ -125,28 +109,15 @@ fun PickerLaunchScreen(
 
 @Composable
 private fun LoadingContent(message: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(48.dp),
-            color = FunBlue
-        )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        CircularProgressIndicator(modifier = Modifier.size(48.dp), color = FunBlue)
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = message,
-            fontSize = 16.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center
-        )
+        Text(text = message, fontSize = 16.sp, color = Color.Gray, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
-private fun WelcomeContent(
-    userName: String,
-    onStartPicker: () -> Unit
-) {
+private fun WelcomeContent(userName: String, onStartPicker: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -177,14 +148,13 @@ private fun WelcomeContent(
 
             Button(
                 onClick = onStartPicker,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FunGreen,
-                    contentColor = Color.White
-                )
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = FunGreen,
+                        contentColor = Color.White
+                    )
             ) {
                 Text(
                     text = "🚀 Open Google Photos Picker",
@@ -197,10 +167,7 @@ private fun WelcomeContent(
 }
 
 @Composable
-private fun PickerReadyContent(
-    pickerUri: String,
-    onLaunchPicker: (String) -> Unit
-) {
+private fun PickerReadyContent(pickerUri: String, onLaunchPicker: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -221,7 +188,8 @@ private fun PickerReadyContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Tap the button below to open Google Photos and select your albums and photos.",
+                text =
+                    "Tap the button below to open Google Photos and select your albums and photos.",
                 fontSize = 16.sp,
                 color = Color.Gray,
                 textAlign = TextAlign.Center
@@ -231,14 +199,13 @@ private fun PickerReadyContent(
 
             Button(
                 onClick = { onLaunchPicker(pickerUri) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FunOrange,
-                    contentColor = Color.White
-                )
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = FunOrange,
+                        contentColor = Color.White
+                    )
             ) {
                 Text(
                     text = "📱 Open Google Photos",
@@ -249,9 +216,7 @@ private fun PickerReadyContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = FunBlue.copy(alpha = 0.1f))
-            ) {
+            Card(colors = CardDefaults.cardColors(containerColor = FunBlue.copy(alpha = 0.1f))) {
                 Text(
                     text = "ℹ️ After selecting photos, return to this app to view them!",
                     modifier = Modifier.padding(12.dp),
@@ -265,10 +230,7 @@ private fun PickerReadyContent(
 }
 
 @Composable
-private fun ErrorContent(
-    error: String,
-    onRetry: () -> Unit
-) {
+private fun ErrorContent(error: String, onRetry: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
@@ -286,12 +248,7 @@ private fun ErrorContent(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = error,
-                fontSize = 14.sp,
-                color = Color.Red,
-                textAlign = TextAlign.Center
-            )
+            Text(text = error, fontSize = 14.sp, color = Color.Red, textAlign = TextAlign.Center)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -299,10 +256,7 @@ private fun ErrorContent(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
             ) {
-                Text(
-                    text = "Try Again",
-                    color = Color.White
-                )
+                Text(text = "Try Again", color = Color.White)
             }
         }
     }

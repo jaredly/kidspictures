@@ -8,16 +8,16 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.jaredforsyth.kidspictures.data.auth.GoogleAuthManager
 import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
 import com.jaredforsyth.kidspictures.data.models.PickerSession
-import com.jaredforsyth.kidspictures.data.repository.PhotosPickerRepository
-import com.jaredforsyth.kidspictures.data.repository.LocalPhotoRepository
 import com.jaredforsyth.kidspictures.data.repository.LocalPhoto
+import com.jaredforsyth.kidspictures.data.repository.LocalPhotoRepository
+import com.jaredforsyth.kidspictures.data.repository.PhotosPickerRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
 
 data class PickerState(
     val isLoading: Boolean = false,
@@ -74,30 +74,34 @@ class PickerViewModel(private val context: Context) : ViewModel() {
             try {
                 val account = authManager.handleSignInResult(data)
                 if (account != null) {
-                    _pickerState.value = _pickerState.value.copy(
-                        isLoading = false,
-                        isSignedIn = true,
-                        user = account
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isLoading = false,
+                            isSignedIn = true,
+                            user = account
+                        )
                 } else {
-                    _pickerState.value = _pickerState.value.copy(
-                        isLoading = false,
-                        isSignedIn = false,
-                        error = "Sign in failed"
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isLoading = false,
+                            isSignedIn = false,
+                            error = "Sign in failed"
+                        )
                 }
             } catch (e: Exception) {
-                val errorMessage = when {
-                    e.message?.contains("SETUP REQUIRED") == true -> e.message
-                    e.message?.contains("Configuration Error") == true -> e.message
-                    else -> "Sign in failed: ${e.message}"
-                }
+                val errorMessage =
+                    when {
+                        e.message?.contains("SETUP REQUIRED") == true -> e.message
+                        e.message?.contains("Configuration Error") == true -> e.message
+                        else -> "Sign in failed: ${e.message}"
+                    }
 
-                _pickerState.value = _pickerState.value.copy(
-                    isLoading = false,
-                    isSignedIn = false,
-                    error = errorMessage
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        isLoading = false,
+                        isSignedIn = false,
+                        error = errorMessage
+                    )
             }
         }
     }
@@ -115,114 +119,161 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
                 println("📂 Found ${localPhotos.size} local photos")
 
-                _pickerState.value = _pickerState.value.copy(
-                    localPhotos = localPhotos,
-                    hasLocalPhotos = hasPhotos,
-                    isLoadingLocalPhotos = false // Set to false after loading
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        localPhotos = localPhotos,
+                        hasLocalPhotos = hasPhotos,
+                        isLoadingLocalPhotos = false // Set to false after loading
+                    )
             } catch (e: Exception) {
                 e.printStackTrace()
                 println("❌ Error loading local photos: ${e.message}")
-                _pickerState.value = _pickerState.value.copy(
-                    error = "Failed to load local photos: ${e.message}",
-                    isLoadingLocalPhotos = false // Set to false on error
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        error = "Failed to load local photos: ${e.message}",
+                        isLoadingLocalPhotos = false // Set to false on error
+                    )
             }
         }
     }
 
     fun downloadAndStorePhotos() {
-        downloadJob = viewModelScope.launch {
-            val mediaItems = _pickerState.value.selectedMediaItems
-            val accessToken = authManager.getAccessToken()
+        downloadJob =
+            viewModelScope.launch {
+                val mediaItems = _pickerState.value.selectedMediaItems
+                val accessToken = authManager.getAccessToken()
 
-            println("🔽 Starting download process - MediaItems: ${mediaItems.size}, AccessToken available: ${accessToken != null}")
-
-            if (mediaItems.isEmpty()) {
-                println("❌ No media items to download")
-                _pickerState.value = _pickerState.value.copy(
-                    isDownloading = false,
-                    isFetchingMediaItems = false,
-                    error = "No photos selected"
-                )
-                return@launch
-            }
-
-            if (accessToken == null) {
-                println("❌ No access token available")
-                _pickerState.value = _pickerState.value.copy(
-                    isDownloading = false,
-                    isFetchingMediaItems = false,
-                    error = "Authentication failed - please sign in again"
-                )
-                return@launch
-            }
-
-            _pickerState.value = _pickerState.value.copy(
-                isDownloading = true,
-                isFetchingMediaItems = false,
-                downloadProgress = null,
-                error = null
-            )
-
-            try {
-                println("📥 Starting download of ${mediaItems.size} items...")
-                val result = localPhotoRepository.downloadAndStorePhotos(
-                    mediaItems = mediaItems,
-                    authToken = accessToken,
-                    onProgress = { current, total ->
-                        println("📊 Download progress: $current/$total")
-                        _pickerState.value = _pickerState.value.copy(
-                            downloadProgress = Pair(current, total)
-                        )
-                    },
-                                        onVideoDownloadProgress = { current, total, filename, downloadedBytes, totalBytes ->
-                        // Calculate individual video progress (0.0 to 1.0 for current video only)
-                        val currentVideoProgress = if (totalBytes > 0) {
-                            downloadedBytes.toFloat() / totalBytes.toFloat()
-                        } else 0f
-                        val progressPercent = (currentVideoProgress * 100).toInt()
-
-                        println("🎬 Video download: $current/$total - $filename (${downloadedBytes}/${totalBytes} bytes, ${progressPercent}% of current video)")
-                        _pickerState.value = _pickerState.value.copy(
-                            isDownloading = false, // Photos are done
-                            isDownloadingVideos = true,
-                            videoDownloadProgress = Triple(current, total, filename),
-                            videoDownloadDetailedProgress = currentVideoProgress
-                        )
-                    },
-                    onVideoProcessingProgress = { current, total, filename ->
-                        println("🔄 Video processing progress: $current/$total - $filename")
-                        _pickerState.value = _pickerState.value.copy(
-                            isDownloadingVideos = false, // Video downloads are done
-                            isProcessingVideos = true,
-                            videoProcessingProgress = Triple(current, total, filename)
-                        )
-                    }
+                println(
+                    "🔽 Starting download process - MediaItems: ${mediaItems.size}, AccessToken available: ${accessToken != null}"
                 )
 
-                result.fold(
-                    onSuccess = { localPhotos ->
-                        println("✅ Download completed successfully: ${localPhotos.size} items saved")
-                        _pickerState.value = _pickerState.value.copy(
-                                                    isDownloading = false,
-                        isDownloadingVideos = false,
-                        isProcessingVideos = false,
+                if (mediaItems.isEmpty()) {
+                    println("❌ No media items to download")
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isDownloading = false,
+                            isFetchingMediaItems = false,
+                            error = "No photos selected"
+                        )
+                    return@launch
+                }
+
+                if (accessToken == null) {
+                    println("❌ No access token available")
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isDownloading = false,
+                            isFetchingMediaItems = false,
+                            error = "Authentication failed - please sign in again"
+                        )
+                    return@launch
+                }
+
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        isDownloading = true,
+                        isFetchingMediaItems = false,
                         downloadProgress = null,
-                        videoDownloadProgress = null,
-                        videoDownloadDetailedProgress = null,
-                        videoProcessingProgress = null,
-                            localPhotos = localPhotos,
-                            hasLocalPhotos = true,
-                            selectedMediaItems = emptyList(), // Clear temporary selection
-                            currentSession = null,
-                            error = null
+                        error = null
+                    )
+
+                try {
+                    println("📥 Starting download of ${mediaItems.size} items...")
+                    val result =
+                        localPhotoRepository.downloadAndStorePhotos(
+                            mediaItems = mediaItems,
+                            authToken = accessToken,
+                            onProgress = { current, total ->
+                                println("📊 Download progress: $current/$total")
+                                _pickerState.value =
+                                    _pickerState.value.copy(downloadProgress = Pair(current, total))
+                            },
+                            onVideoDownloadProgress = {
+                                current,
+                                total,
+                                filename,
+                                downloadedBytes,
+                                totalBytes ->
+                                // Calculate individual video progress (0.0 to 1.0 for current video
+                                // only)
+                                val currentVideoProgress =
+                                    if (totalBytes > 0) {
+                                        downloadedBytes.toFloat() / totalBytes.toFloat()
+                                    } else 0f
+                                val progressPercent = (currentVideoProgress * 100).toInt()
+
+                                println(
+                                    "🎯 PickerViewModel received progress: $current/$total - $filename"
+                                )
+                                println("   📊 Bytes: $downloadedBytes/$totalBytes")
+                                println(
+                                    "   📈 Progress: $currentVideoProgress (${progressPercent}%)"
+                                )
+
+                                val newState =
+                                    _pickerState.value.copy(
+                                        isDownloading = false, // Photos are done
+                                        isDownloadingVideos = true,
+                                        videoDownloadProgress = Triple(current, total, filename),
+                                        videoDownloadDetailedProgress = currentVideoProgress
+                                    )
+                                _pickerState.value = newState
+                                println(
+                                    "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}"
+                                )
+                            },
+                            onVideoProcessingProgress = { current, total, filename ->
+                                println("🔄 Video processing progress: $current/$total - $filename")
+                                _pickerState.value =
+                                    _pickerState.value.copy(
+                                        isDownloadingVideos = false, // Video downloads are done
+                                        isProcessingVideos = true,
+                                        videoProcessingProgress = Triple(current, total, filename)
+                                    )
+                            }
                         )
-                    },
-                    onFailure = { error ->
-                        println("❌ Download failed: ${error.message}")
-                        error.printStackTrace()
-                        _pickerState.value = _pickerState.value.copy(
+
+                    result.fold(
+                        onSuccess = { localPhotos ->
+                            println(
+                                "✅ Download completed successfully: ${localPhotos.size} items saved"
+                            )
+                            _pickerState.value =
+                                _pickerState.value.copy(
+                                    isDownloading = false,
+                                    isDownloadingVideos = false,
+                                    isProcessingVideos = false,
+                                    downloadProgress = null,
+                                    videoDownloadProgress = null,
+                                    videoDownloadDetailedProgress = null,
+                                    videoProcessingProgress = null,
+                                    localPhotos = localPhotos,
+                                    hasLocalPhotos = true,
+                                    selectedMediaItems = emptyList(), // Clear temporary selection
+                                    currentSession = null,
+                                    error = null
+                                )
+                        },
+                        onFailure = { error ->
+                            println("❌ Download failed: ${error.message}")
+                            error.printStackTrace()
+                            _pickerState.value =
+                                _pickerState.value.copy(
+                                    isDownloading = false,
+                                    isDownloadingVideos = false,
+                                    isProcessingVideos = false,
+                                    downloadProgress = null,
+                                    videoDownloadProgress = null,
+                                    videoDownloadDetailedProgress = null,
+                                    videoProcessingProgress = null,
+                                    error = "Download failed: ${error.message}"
+                                )
+                        }
+                    )
+                } catch (e: CancellationException) {
+                    println("🛑 Download cancelled by user")
+                    _pickerState.value =
+                        _pickerState.value.copy(
                             isDownloading = false,
                             isDownloadingVideos = false,
                             isProcessingVideos = false,
@@ -230,40 +281,27 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             videoDownloadProgress = null,
                             videoDownloadDetailedProgress = null,
                             videoProcessingProgress = null,
-                            error = "Download failed: ${error.message}"
+                            selectedMediaItems = emptyList(),
+                            currentSession = null,
+                            error = null // Clear error on cancellation
                         )
-                    }
-                )
-            } catch (e: CancellationException) {
-                println("🛑 Download cancelled by user")
-                _pickerState.value = _pickerState.value.copy(
-                    isDownloading = false,
-                    isDownloadingVideos = false,
-                    isProcessingVideos = false,
-                    downloadProgress = null,
-                    videoDownloadProgress = null,
-                    videoDownloadDetailedProgress = null,
-                    videoProcessingProgress = null,
-                    selectedMediaItems = emptyList(),
-                    currentSession = null,
-                    error = null // Clear error on cancellation
-                )
-                loadLocalPhotos() // Reload local photos to show what was saved
-            } catch (e: Exception) {
-                println("❌ Download exception: ${e.message}")
-                e.printStackTrace()
-                _pickerState.value = _pickerState.value.copy(
-                    isDownloading = false,
-                    isDownloadingVideos = false,
-                    isProcessingVideos = false,
-                    downloadProgress = null,
-                    videoDownloadProgress = null,
-                    videoDownloadDetailedProgress = null,
-                    videoProcessingProgress = null,
-                    error = "Download error: ${e.message}"
-                )
+                    loadLocalPhotos() // Reload local photos to show what was saved
+                } catch (e: Exception) {
+                    println("❌ Download exception: ${e.message}")
+                    e.printStackTrace()
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isDownloading = false,
+                            isDownloadingVideos = false,
+                            isProcessingVideos = false,
+                            downloadProgress = null,
+                            videoDownloadProgress = null,
+                            videoDownloadDetailedProgress = null,
+                            videoProcessingProgress = null,
+                            error = "Download error: ${e.message}"
+                        )
+                }
             }
-        }
     }
 
     fun cancelDownload() {
@@ -277,29 +315,24 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             try {
                 localPhotoRepository.clearLocalPhotos()
-                _pickerState.value = _pickerState.value.copy(
-                    localPhotos = emptyList(),
-                    hasLocalPhotos = false
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(localPhotos = emptyList(), hasLocalPhotos = false)
                 println("✅ Cleared all local photos")
             } catch (e: Exception) {
-                _pickerState.value = _pickerState.value.copy(
-                    error = "Failed to clear photos: ${e.message}"
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(error = "Failed to clear photos: ${e.message}")
             }
         }
     }
 
-            fun startPhotoSelection() {
+    fun startPhotoSelection() {
         viewModelScope.launch {
             try {
                 println("🚀 Starting photo selection process...")
 
                 // Keep loading state active during session creation
-                _pickerState.value = _pickerState.value.copy(
-                    isLoadingLocalPhotos = true,
-                    error = null
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(isLoadingLocalPhotos = true, error = null)
 
                 // Create picker session and open browser directly
                 createPickerSession()
@@ -307,10 +340,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 // The session creation will handle any auth errors
                 // The UI will automatically open the picker when the session is ready
             } catch (e: Exception) {
-                _pickerState.value = _pickerState.value.copy(
-                    isLoadingLocalPhotos = false,
-                    error = "Failed to start photo selection: ${e.message}"
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        isLoadingLocalPhotos = false,
+                        error = "Failed to start photo selection: ${e.message}"
+                    )
             }
         }
     }
@@ -333,30 +367,34 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                     val result = repository.createSession(accessToken)
                     result.fold(
                         onSuccess = { session ->
-                            _pickerState.value = _pickerState.value.copy(
-                                isLoading = false,
-                                currentSession = session,
-                                pickerUri = session.pickerUri
-                            )
+                            _pickerState.value =
+                                _pickerState.value.copy(
+                                    isLoading = false,
+                                    currentSession = session,
+                                    pickerUri = session.pickerUri
+                                )
                         },
                         onFailure = { error ->
-                            _pickerState.value = _pickerState.value.copy(
-                                isLoading = false,
-                                error = "Failed to create session: ${error.message}"
-                            )
+                            _pickerState.value =
+                                _pickerState.value.copy(
+                                    isLoading = false,
+                                    error = "Failed to create session: ${error.message}"
+                                )
                         }
                     )
                 } else {
-                    _pickerState.value = _pickerState.value.copy(
-                        isLoading = false,
-                        error = "Please sign in to Google to select photos"
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isLoading = false,
+                            error = "Please sign in to Google to select photos"
+                        )
                 }
             } catch (e: Exception) {
-                _pickerState.value = _pickerState.value.copy(
-                    isLoading = false,
-                    error = "Session creation error: ${e.message}"
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        isLoading = false,
+                        error = "Session creation error: ${e.message}"
+                    )
             }
         }
     }
@@ -366,10 +404,8 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
         viewModelScope.launch {
             println("🔄 Starting polling session: ${session.id}")
-            _pickerState.value = _pickerState.value.copy(
-                isPolling = true,
-                isLoadingLocalPhotos = false
-            )
+            _pickerState.value =
+                _pickerState.value.copy(isPolling = true, isLoadingLocalPhotos = false)
 
             try {
                 val accessToken = authManager.getAccessToken()
@@ -388,27 +424,33 @@ class PickerViewModel(private val context: Context) : ViewModel() {
 
                         if (result.isSuccess) {
                             val updatedSession = result.getOrThrow()
-                            println("📊 Session status: mediaItemsSet=${updatedSession.mediaItemsSet}")
+                            println(
+                                "📊 Session status: mediaItemsSet=${updatedSession.mediaItemsSet}"
+                            )
 
                             // Reset network error counter on successful request
                             consecutiveNetworkErrors = 0
 
                             // Keep the original pickerUri since status responses don't include it
                             val currentSession = _pickerState.value.currentSession
-                            val sessionWithUri = updatedSession.copy(
-                                pickerUri = currentSession?.pickerUri ?: updatedSession.pickerUri
-                            )
+                            val sessionWithUri =
+                                updatedSession.copy(
+                                    pickerUri =
+                                        currentSession?.pickerUri ?: updatedSession.pickerUri
+                                )
 
-                            _pickerState.value = _pickerState.value.copy(
-                                currentSession = sessionWithUri
-                            )
+                            _pickerState.value =
+                                _pickerState.value.copy(currentSession = sessionWithUri)
 
                             if (updatedSession.mediaItemsSet) {
-                                println("✅ Media items detected! Starting fetch and download flow...")
-                                _pickerState.value = _pickerState.value.copy(
-                                    isPolling = false,
-                                    isFetchingMediaItems = true
+                                println(
+                                    "✅ Media items detected! Starting fetch and download flow..."
                                 )
+                                _pickerState.value =
+                                    _pickerState.value.copy(
+                                        isPolling = false,
+                                        isFetchingMediaItems = true
+                                    )
                                 getSelectedMediaItems()
                                 shouldContinuePolling = false
                             }
@@ -417,70 +459,84 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             println("❌ Polling error: $error")
 
                             // Check for network-related errors
-                            val isNetworkError = error.let { msg ->
-                                msg.contains("UnknownHostException") ||
-                                msg.contains("Unable to resolve host") ||
-                                msg.contains("ConnectException") ||
-                                msg.contains("SocketTimeoutException") ||
-                                msg.contains("Network is unreachable") ||
-                                msg.contains("No address associated with hostname")
-                            }
+                            val isNetworkError =
+                                error.let { msg ->
+                                    msg.contains("UnknownHostException") ||
+                                        msg.contains("Unable to resolve host") ||
+                                        msg.contains("ConnectException") ||
+                                        msg.contains("SocketTimeoutException") ||
+                                        msg.contains("Network is unreachable") ||
+                                        msg.contains("No address associated with hostname")
+                                }
 
                             if (isNetworkError) {
                                 consecutiveNetworkErrors++
-                                println("🌐 Network error $consecutiveNetworkErrors/$maxNetworkErrors")
+                                println(
+                                    "🌐 Network error $consecutiveNetworkErrors/$maxNetworkErrors"
+                                )
 
                                 if (consecutiveNetworkErrors >= maxNetworkErrors) {
                                     println("🚫 Too many network errors, stopping polling")
-                                    _pickerState.value = _pickerState.value.copy(
-                                        isPolling = false,
-                                        error = "Network connection issues. Please check your internet and try again."
-                                    )
+                                    _pickerState.value =
+                                        _pickerState.value.copy(
+                                            isPolling = false,
+                                            error =
+                                                "Network connection issues. Please check your internet and try again."
+                                        )
                                     shouldContinuePolling = false
                                 }
                             } else {
                                 // For non-network errors (like auth), stop immediately
-                                _pickerState.value = _pickerState.value.copy(
-                                    isPolling = false,
-                                    error = "Polling error: $error"
-                                )
+                                _pickerState.value =
+                                    _pickerState.value.copy(
+                                        isPolling = false,
+                                        error = "Polling error: $error"
+                                    )
                                 shouldContinuePolling = false
                             }
                         }
 
                         if (shouldContinuePolling) {
                             // Use exponential backoff for network errors, normal delay otherwise
-                            val delayMs = if (consecutiveNetworkErrors > 0) {
-                                val backoffDelay = minOf(3000L * (1L shl consecutiveNetworkErrors), 15000L) // Cap at 15 seconds
-                                println("⏳ Network error backoff: ${backoffDelay}ms")
-                                backoffDelay
-                            } else {
-                                3000L
-                            }
+                            val delayMs =
+                                if (consecutiveNetworkErrors > 0) {
+                                    val backoffDelay =
+                                        minOf(
+                                            3000L * (1L shl consecutiveNetworkErrors),
+                                            15000L
+                                        ) // Cap at 15 seconds
+                                    println("⏳ Network error backoff: ${backoffDelay}ms")
+                                    backoffDelay
+                                } else {
+                                    3000L
+                                }
                             delay(delayMs)
                         }
                     }
 
                     if (pollCount >= 60) {
                         println("⏰ Polling timed out after 3 minutes")
-                        _pickerState.value = _pickerState.value.copy(
-                            isPolling = false,
-                            error = "Selection timed out. Please try again."
-                        )
+                        _pickerState.value =
+                            _pickerState.value.copy(
+                                isPolling = false,
+                                error = "Selection timed out. Please try again."
+                            )
                     }
                 } else {
                     println("❌ No access token for polling")
-                    _pickerState.value = _pickerState.value.copy(
-                        isPolling = false,
-                        error = "Authentication error. Please sign in again."
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isPolling = false,
+                            error = "Authentication error. Please sign in again."
+                        )
                 }
             } catch (e: Exception) {
                 println("❌ Polling exception: ${e.message}")
-                _pickerState.value = _pickerState.value.copy(
-                    isPolling = false,
-                    error = "Polling failed: ${e.message}"
-                )
+                _pickerState.value =
+                    _pickerState.value.copy(
+                        isPolling = false,
+                        error = "Polling failed: ${e.message}"
+                    )
             }
         }
     }
@@ -500,10 +556,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                         println("🎭 MimeType: ${item.mediaFile.mimeType}")
                         println("📊 Type: ${item.type}")
                     }
-                    _pickerState.value = _pickerState.value.copy(
-                        isFetchingMediaItems = false,
-                        selectedMediaItems = mediaItems
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isFetchingMediaItems = false,
+                            selectedMediaItems = mediaItems
+                        )
 
                     // Automatically download and store photos after selection
                     println("🔄 Auto-downloading selected photos...")
@@ -511,18 +568,20 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                 },
                 onFailure = { error ->
                     println("❌ Get Media Items failure: ${error.message}")
-                    _pickerState.value = _pickerState.value.copy(
-                        isFetchingMediaItems = false,
-                        error = "Failed to get media items: ${error.message}"
-                    )
+                    _pickerState.value =
+                        _pickerState.value.copy(
+                            isFetchingMediaItems = false,
+                            error = "Failed to get media items: ${error.message}"
+                        )
                 }
             )
         } catch (e: Exception) {
             println("❌ Get Media Items exception: ${e.message}")
-            _pickerState.value = _pickerState.value.copy(
-                isFetchingMediaItems = false,
-                error = "Media items error: ${e.message}"
-            )
+            _pickerState.value =
+                _pickerState.value.copy(
+                    isFetchingMediaItems = false,
+                    error = "Media items error: ${e.message}"
+                )
         }
     }
 
@@ -530,32 +589,25 @@ class PickerViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             try {
                 authManager.signOut()
-                _pickerState.value = PickerState(
-                    isLoading = false,
-                    isSignedIn = false,
-                    user = null
-                )
+                _pickerState.value = PickerState(isLoading = false, isSignedIn = false, user = null)
             } catch (e: Exception) {
-                _pickerState.value = _pickerState.value.copy(
-                    error = "Sign out error: ${e.message}"
-                )
+                _pickerState.value = _pickerState.value.copy(error = "Sign out error: ${e.message}")
             }
         }
     }
 
     private fun checkSignInStatus() {
         val currentUser = authManager.getCurrentUser()
-        _pickerState.value = _pickerState.value.copy(
-            isSignedIn = currentUser != null,
-            user = currentUser
-        )
+        _pickerState.value =
+            _pickerState.value.copy(isSignedIn = currentUser != null, user = currentUser)
     }
 
     fun clearSelection() {
-        _pickerState.value = _pickerState.value.copy(
-            currentSession = null,
-            selectedMediaItems = emptyList(),
-            pickerUri = null
-        )
+        _pickerState.value =
+            _pickerState.value.copy(
+                currentSession = null,
+                selectedMediaItems = emptyList(),
+                pickerUri = null
+            )
     }
 }

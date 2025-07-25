@@ -3,13 +3,13 @@ package com.jaredforsyth.kidspictures
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,73 +43,61 @@ class MainActivity : FragmentActivity() {
 fun KidsPicturesApp() {
     val navController = rememberNavController()
 
-    NavHost(
-        navController = navController,
-        startDestination = "main"
-    ) {
+    NavHost(navController = navController, startDestination = "main") {
         composable("main") {
-            val pickerViewModel: PickerViewModel = viewModel(
-                viewModelStoreOwner = navController.getBackStackEntry("main"),
-                factory = PickerViewModelFactory(LocalContext.current)
-            )
+            val pickerViewModel: PickerViewModel =
+                viewModel(
+                    viewModelStoreOwner = navController.getBackStackEntry("main"),
+                    factory = PickerViewModelFactory(LocalContext.current)
+                )
 
             MainScreen(
                 pickerViewModel = pickerViewModel,
                 onSignOut = {
-                    navController.navigate("sign_in") {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    navController.navigate("sign_in") { popUpTo(0) { inclusive = true } }
                 },
-                onNeedSignIn = {
-                    navController.navigate("sign_in")
-                }
+                onNeedSignIn = { navController.navigate("sign_in") }
             )
         }
 
         composable("sign_in") {
             SignInScreen(
                 onSignInSuccess = {
-                    navController.navigate("main") {
-                        popUpTo("sign_in") { inclusive = true }
-                    }
+                    navController.navigate("main") { popUpTo("sign_in") { inclusive = true } }
                 }
             )
         }
 
         composable("picker_launch") {
-            val pickerViewModel: PickerViewModel = viewModel(
-                viewModelStoreOwner = navController.getBackStackEntry("main"),
-                factory = PickerViewModelFactory(LocalContext.current)
-            )
+            val pickerViewModel: PickerViewModel =
+                viewModel(
+                    viewModelStoreOwner = navController.getBackStackEntry("main"),
+                    factory = PickerViewModelFactory(LocalContext.current)
+                )
 
             PickerLaunchScreen(
                 pickerViewModel = pickerViewModel,
                 onPhotosSelected = {
                     // Download and store photos, then return to main
                     pickerViewModel.downloadAndStorePhotos()
-                    navController.navigate("main") {
-                        popUpTo("main") { inclusive = true }
-                    }
+                    navController.navigate("main") { popUpTo("main") { inclusive = true } }
                 },
                 onSignOut = {
-                    navController.navigate("sign_in") {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    navController.navigate("sign_in") { popUpTo(0) { inclusive = true } }
                 }
             )
         }
 
         composable("photo_gallery") {
-            val pickerViewModel: PickerViewModel = viewModel(
-                viewModelStoreOwner = navController.getBackStackEntry("main"),
-                factory = PickerViewModelFactory(LocalContext.current)
-            )
+            val pickerViewModel: PickerViewModel =
+                viewModel(
+                    viewModelStoreOwner = navController.getBackStackEntry("main"),
+                    factory = PickerViewModelFactory(LocalContext.current)
+                )
 
             PhotoGalleryScreen(
                 pickerViewModel = pickerViewModel,
-                onBackToSelection = {
-                    navController.popBackStack()
-                }
+                onBackToSelection = { navController.popBackStack() }
             )
         }
     }

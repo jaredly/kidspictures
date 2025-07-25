@@ -26,7 +26,6 @@ data class MediaFile(
     val mediaFileMetadata: MediaMetadata
 ) : Parcelable
 
-
 @Parcelize
 data class MediaMetadata(
     val width: Int,
@@ -42,15 +41,9 @@ data class PickedAlbum(
 ) : Parcelable
 
 // API request/response models
-data class CreateSessionRequest(
-    val mediaItemsSet: Boolean = false
-)
+data class CreateSessionRequest(val mediaItemsSet: Boolean = false)
 
-data class CreateSessionResponse(
-    val id: String,
-    val pickerUri: String,
-    val mediaItemsSet: Boolean
-)
+data class CreateSessionResponse(val id: String, val pickerUri: String, val mediaItemsSet: Boolean)
 
 data class SessionStatusResponse(
     val id: String,

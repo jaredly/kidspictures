@@ -22,15 +22,17 @@ import com.jaredforsyth.kidspictures.ui.viewmodel.PickerViewModelFactory
 @Composable
 fun SignInScreen(
     onSignInSuccess: () -> Unit,
-    pickerViewModel: PickerViewModel = viewModel(factory = PickerViewModelFactory(LocalContext.current))
+    pickerViewModel: PickerViewModel =
+        viewModel(factory = PickerViewModelFactory(LocalContext.current))
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
 
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        pickerViewModel.handleSignInResult(result.data)
-    }
+    val signInLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            pickerViewModel.handleSignInResult(result.data)
+        }
 
     LaunchedEffect(pickerState.isSignedIn) {
         if (pickerState.isSignedIn) {
@@ -38,14 +40,9 @@ fun SignInScreen(
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = LightBackground
-    ) {
+    Surface(modifier = Modifier.fillMaxSize(), color = LightBackground) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -72,16 +69,11 @@ fun SignInScreen(
             // Sign In Button
             if (pickerState.isLoading) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = FunYellow)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
                             color = Color.White
@@ -94,14 +86,13 @@ fun SignInScreen(
                         val signInIntent = pickerViewModel.getSignInIntent()
                         signInLauncher.launch(signInIntent)
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(28.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = FunYellow,
-                        contentColor = Color.White
-                    )
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = FunYellow,
+                            contentColor = Color.White
+                        )
                 ) {
                     Text(
                         text = "🔐 Sign in with Google",
@@ -135,9 +126,7 @@ fun SignInScreen(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "🎉 What you can do:",
                         fontSize = 16.sp,
@@ -146,7 +135,8 @@ fun SignInScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "• 📱 Select entire albums from Google Photos\n• 🌤️ Access cloud photos not on your device\n• 🖼️ Choose multiple photos at once\n• 👆 View photos in full screen",
+                        text =
+                            "• 📱 Select entire albums from Google Photos\n• 🌤️ Access cloud photos not on your device\n• 🖼️ Choose multiple photos at once\n• 👆 View photos in full screen",
                         fontSize = 14.sp,
                         color = Color.Gray,
                         lineHeight = 20.sp

@@ -7,31 +7,28 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
-import android.view.Surface
-import java.nio.ByteBuffer
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.jaredforsyth.kidspictures.data.models.PickedMediaItem
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
-import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "local_photos")
 
@@ -51,11 +48,12 @@ data class LocalPhoto(
 
 class LocalPhotoRepository(private val context: Context) {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
 
     companion object {
         private val PHOTO_METADATA_KEY = stringPreferencesKey("photo_metadata")
@@ -65,21 +63,15 @@ class LocalPhotoRepository(private val context: Context) {
     }
 
     private val photosDir: File by lazy {
-        File(context.filesDir, PHOTOS_DIR).apply {
-            if (!exists()) mkdirs()
-        }
+        File(context.filesDir, PHOTOS_DIR).apply { if (!exists()) mkdirs() }
     }
 
     private val videosDir: File by lazy {
-        File(context.filesDir, VIDEOS_DIR).apply {
-            if (!exists()) mkdirs()
-        }
+        File(context.filesDir, VIDEOS_DIR).apply { if (!exists()) mkdirs() }
     }
 
     private val tempDir: File by lazy {
-        File(context.filesDir, TEMP_DIR).apply {
-            if (!exists()) mkdirs()
-        }
+        File(context.filesDir, TEMP_DIR).apply { if (!exists()) mkdirs() }
     }
 
     suspend fun getLocalPhotos(): List<LocalPhoto> {
@@ -102,8 +94,15 @@ class LocalPhotoRepository(private val context: Context) {
         mediaItems: List<PickedMediaItem>,
         authToken: String,
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> },
-        onVideoDownloadProgress: (current: Int, total: Int, filename: String, downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _, _, _, _ -> },
-        onVideoProcessingProgress: (current: Int, total: Int, filename: String) -> Unit = { _, _, _ -> }
+        onVideoDownloadProgress:
+            (
+                current: Int, total: Int, filename: String, downloadedBytes: Long, totalBytes: Long
+            ) -> Unit =
+            { _, _, _, _, _ ->
+            },
+        onVideoProcessingProgress: (current: Int, total: Int, filename: String) -> Unit =
+            { _, _, _ ->
+            }
     ): Result<List<LocalPhoto>> {
         return try {
             println("🔽 Starting download of ${mediaItems.size} media items")
@@ -115,7 +114,9 @@ class LocalPhotoRepository(private val context: Context) {
                 try {
                     currentCoroutineContext().ensureActive()
                 } catch (e: CancellationException) {
-                    println("🛑 Download cancelled after ${localPhotos.size} items. Saving what we have...")
+                    println(
+                        "🛑 Download cancelled after ${localPhotos.size} items. Saving what we have..."
+                    )
                     // Save whatever we've downloaded so far
                     if (localPhotos.isNotEmpty()) {
                         savePhotoMetadata(localPhotos)
@@ -123,7 +124,9 @@ class LocalPhotoRepository(private val context: Context) {
                     return Result.success(localPhotos)
                 }
 
-                println("📥 Downloading thumbnail ${index + 1}/${mediaItems.size}: ${mediaItem.mediaFile.filename}")
+                println(
+                    "📥 Downloading thumbnail ${index + 1}/${mediaItems.size}: ${mediaItem.mediaFile.filename}"
+                )
                 onProgress(index + 1, mediaItems.size)
 
                 val localPhoto = downloadPhoto(mediaItem, authToken)
@@ -146,17 +149,34 @@ class LocalPhotoRepository(private val context: Context) {
 
                         val mediaItem = mediaItems.find { it.id == localPhoto.id }
                         if (mediaItem != null) {
-                            val videoFile = downloadVideo(mediaItem, authToken) { downloadedBytes, totalBytes ->
-                                onVideoDownloadProgress(index + 1, videoItems.size, localPhoto.filename, downloadedBytes, totalBytes)
-                            }
+                            println("🔍 Starting video download for: ${localPhoto.filename}")
+                            val videoFile =
+                                downloadVideo(mediaItem, authToken) { downloadedBytes, totalBytes ->
+                                    println(
+                                        "🔍 Lambda callback triggered: $downloadedBytes/$totalBytes for ${localPhoto.filename}"
+                                    )
+                                    onVideoDownloadProgress(
+                                        index + 1,
+                                        videoItems.size,
+                                        localPhoto.filename,
+                                        downloadedBytes,
+                                        totalBytes
+                                    )
+                                }
                             if (videoFile != null) {
-                                onVideoProcessingProgress(index + 1, videoItems.size, localPhoto.filename)
+                                onVideoProcessingProgress(
+                                    index + 1,
+                                    videoItems.size,
+                                    localPhoto.filename
+                                )
 
                                 val processedVideoFile = processVideo(videoFile, mediaItem)
                                 if (processedVideoFile != null) {
                                     // Update the LocalPhoto with video information
-                                    val updatedPhoto = getVideoMetadata(localPhoto, processedVideoFile, mediaItem)
-                                    val photoIndex = localPhotos.indexOfFirst { it.id == localPhoto.id }
+                                    val updatedPhoto =
+                                        getVideoMetadata(localPhoto, processedVideoFile, mediaItem)
+                                    val photoIndex =
+                                        localPhotos.indexOfFirst { it.id == localPhoto.id }
                                     if (photoIndex >= 0) {
                                         localPhotos[photoIndex] = updatedPhoto
                                     }
@@ -194,7 +214,7 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-        private suspend fun downloadPhoto(mediaItem: PickedMediaItem, authToken: String): LocalPhoto? {
+    private suspend fun downloadPhoto(mediaItem: PickedMediaItem, authToken: String): LocalPhoto? {
         return try {
             val baseUrl = mediaItem.mediaFile.baseUrl
             if (baseUrl.isNullOrEmpty()) {
@@ -203,32 +223,40 @@ class LocalPhotoRepository(private val context: Context) {
             }
 
             // Check if this is a video and append -no to remove play button overlay
-            val isVideo = mediaItem.mediaFile.mimeType?.startsWith("video/") == true ||
-                         mediaItem.type?.lowercase()?.contains("video") == true
+            val isVideo =
+                mediaItem.mediaFile.mimeType?.startsWith("video/") == true ||
+                    mediaItem.type?.lowercase()?.contains("video") == true
             val videoSuffix = if (isVideo) "-no" else ""
 
-            val url = "${baseUrl}=w1024-h1024${videoSuffix}" // High quality download, no play button for videos
+            val url =
+                "${baseUrl}=w1024-h1024${videoSuffix}" // High quality download, no play button for
+            // videos
             println("🌐 Downloading ${if (isVideo) "video thumbnail" else "photo"} from: $url")
 
             // Move network request to IO thread
-            val response = withContext(Dispatchers.IO) {
-                val request = Request.Builder()
-                    .url(url)
-                    .addHeader("Authorization", "Bearer $authToken")
-                    .build()
+            val response =
+                withContext(Dispatchers.IO) {
+                    val request =
+                        Request.Builder()
+                            .url(url)
+                            .addHeader("Authorization", "Bearer $authToken")
+                            .build()
 
-                client.newCall(request).execute()
-            }
+                    client.newCall(request).execute()
+                }
 
             if (!response.isSuccessful) {
-                val errorMsg = when (response.code) {
-                    401 -> "Authentication expired - please sign in again"
-                    403 -> "Access denied - check photo permissions"
-                    404 -> "Photo not found - it may have been deleted"
-                    429 -> "Too many requests - please try downloading fewer photos"
-                    500, 502, 503 -> "Google Photos server error - please try again later"
-                    else -> "HTTP ${response.code} - ${response.message}"
-                }
+                val errorMsg =
+                    when (response.code) {
+                        401 -> "Authentication expired - please sign in again"
+                        403 -> "Access denied - check photo permissions"
+                        404 -> "Photo not found - it may have been deleted"
+                        429 -> "Too many requests - please try downloading fewer photos"
+                        500,
+                        502,
+                        503 -> "Google Photos server error - please try again later"
+                        else -> "HTTP ${response.code} - ${response.message}"
+                    }
                 println("❌ Failed to download photo: $errorMsg")
                 response.body?.close()
                 return null
@@ -238,9 +266,7 @@ class LocalPhotoRepository(private val context: Context) {
             val localFile = File(photosDir, fileName)
 
             response.body?.byteStream()?.use { inputStream ->
-                FileOutputStream(localFile).use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
+                FileOutputStream(localFile).use { outputStream -> inputStream.copyTo(outputStream) }
             }
 
             val fileSize = localFile.length()
@@ -252,25 +278,30 @@ class LocalPhotoRepository(private val context: Context) {
                 return null
             }
 
-            val localPhoto = LocalPhoto(
-                id = mediaItem.id,
-                filename = mediaItem.mediaFile.filename ?: fileName,
-                localPath = localFile.absolutePath,
-                originalUrl = mediaItem.mediaFile.baseUrl ?: "",
-                mimeType = mediaItem.mediaFile.mimeType ?: "image/jpeg",
-                isVideo = isVideo,
-                originalVideoUrl = if (isVideo) mediaItem.mediaFile.baseUrl else null
-            )
+            val localPhoto =
+                LocalPhoto(
+                    id = mediaItem.id,
+                    filename = mediaItem.mediaFile.filename ?: fileName,
+                    localPath = localFile.absolutePath,
+                    originalUrl = mediaItem.mediaFile.baseUrl ?: "",
+                    mimeType = mediaItem.mediaFile.mimeType ?: "image/jpeg",
+                    isVideo = isVideo,
+                    originalVideoUrl = if (isVideo) mediaItem.mediaFile.baseUrl else null
+                )
 
             println("🎯 Created LocalPhoto: ${localPhoto.filename}")
             localPhoto
         } catch (e: Exception) {
-            val errorMsg = when {
-                e.message?.contains("timeout") == true -> "Network timeout - check your internet connection"
-                e.message?.contains("Unable to resolve host") == true -> "Network error - check your internet connection"
-                e.message?.contains("No space left") == true -> "Storage full - free up some space and try again"
-                else -> "Download error: ${e.message}"
-            }
+            val errorMsg =
+                when {
+                    e.message?.contains("timeout") == true ->
+                        "Network timeout - check your internet connection"
+                    e.message?.contains("Unable to resolve host") == true ->
+                        "Network error - check your internet connection"
+                    e.message?.contains("No space left") == true ->
+                        "Storage full - free up some space and try again"
+                    else -> "Download error: ${e.message}"
+                }
             println("❌ Download failed for ${mediaItem.mediaFile.filename}: $errorMsg")
             e.printStackTrace()
             null
@@ -292,24 +323,29 @@ class LocalPhotoRepository(private val context: Context) {
             val url = "${baseUrl}=dv" // Download video data
             println("🎬 Downloading video from: $url")
 
-            val response = withContext(Dispatchers.IO) {
-                val request = Request.Builder()
-                    .url(url)
-                    .addHeader("Authorization", "Bearer $authToken")
-                    .build()
+            val response =
+                withContext(Dispatchers.IO) {
+                    val request =
+                        Request.Builder()
+                            .url(url)
+                            .addHeader("Authorization", "Bearer $authToken")
+                            .build()
 
-                client.newCall(request).execute()
-            }
+                    client.newCall(request).execute()
+                }
 
             if (!response.isSuccessful) {
-                val errorMsg = when (response.code) {
-                    401 -> "Authentication expired - please sign in again"
-                    403 -> "Access denied - check video permissions"
-                    404 -> "Video not found - it may have been deleted"
-                    429 -> "Too many requests - please try downloading fewer videos"
-                    500, 502, 503 -> "Google Photos server error - please try again later"
-                    else -> "HTTP ${response.code} - ${response.message}"
-                }
+                val errorMsg =
+                    when (response.code) {
+                        401 -> "Authentication expired - please sign in again"
+                        403 -> "Access denied - check video permissions"
+                        404 -> "Video not found - it may have been deleted"
+                        429 -> "Too many requests - please try downloading fewer videos"
+                        500,
+                        502,
+                        503 -> "Google Photos server error - please try again later"
+                        else -> "HTTP ${response.code} - ${response.message}"
+                    }
                 println("❌ Failed to download video: $errorMsg")
                 response.body?.close()
                 return null
@@ -322,25 +358,57 @@ class LocalPhotoRepository(private val context: Context) {
                 val totalBytes = responseBody.contentLength()
                 var downloadedBytes = 0L
 
+                println("🔍 Starting video download: totalBytes=$totalBytes")
+
                 responseBody.byteStream().use { inputStream ->
                     FileOutputStream(tempFile).use { outputStream ->
                         val buffer = ByteArray(8192) // 8KB buffer
                         var bytesRead: Int
+                        var progressCallCount = 0
 
                         while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                             outputStream.write(buffer, 0, bytesRead)
                             downloadedBytes += bytesRead
 
-                            // Report progress every 32KB or at completion for smooth updates
-                            if (downloadedBytes % (32 * 1024) == 0L || downloadedBytes == totalBytes) {
-                                onProgress(downloadedBytes, totalBytes)
+                            // Report progress every 8KB (one buffer) or at completion for very
+                            // smooth updates
+                            if (
+                                downloadedBytes % (8 * 1024) == 0L || downloadedBytes == totalBytes
+                            ) {
+                                progressCallCount++
+                                val progressPercent =
+                                    if (totalBytes > 0) (downloadedBytes * 100 / totalBytes) else 0
+                                println(
+                                    "🔍 Progress callback #$progressCallCount: $downloadedBytes/$totalBytes bytes (${progressPercent}%)"
+                                )
+
+                                // Call progress on main thread for UI updates
+                                kotlinx.coroutines.GlobalScope.launch(
+                                    kotlinx.coroutines.Dispatchers.Main
+                                ) {
+                                    onProgress(downloadedBytes, totalBytes)
+                                }
                             }
                         }
 
                         // Ensure final progress is reported
                         if (downloadedBytes > 0) {
-                            onProgress(downloadedBytes, totalBytes)
+                            progressCallCount++
+                            val finalPercent =
+                                if (totalBytes > 0) (downloadedBytes * 100 / totalBytes) else 0
+                            println(
+                                "🔍 Final progress callback #$progressCallCount: $downloadedBytes/$totalBytes bytes (${finalPercent}%)"
+                            )
+
+                            // Call final progress on main thread for UI updates
+                            kotlinx.coroutines.GlobalScope.launch(
+                                kotlinx.coroutines.Dispatchers.Main
+                            ) {
+                                onProgress(downloadedBytes, totalBytes)
+                            }
                         }
+
+                        println("🔍 Download completed: total callbacks = $progressCallCount")
                     }
                 }
             }
@@ -356,12 +424,16 @@ class LocalPhotoRepository(private val context: Context) {
 
             tempFile
         } catch (e: Exception) {
-            val errorMsg = when {
-                e.message?.contains("timeout") == true -> "Network timeout - check your internet connection"
-                e.message?.contains("Unable to resolve host") == true -> "Network error - check your internet connection"
-                e.message?.contains("No space left") == true -> "Storage full - free up some space and try again"
-                else -> "Video download error: ${e.message}"
-            }
+            val errorMsg =
+                when {
+                    e.message?.contains("timeout") == true ->
+                        "Network timeout - check your internet connection"
+                    e.message?.contains("Unable to resolve host") == true ->
+                        "Network error - check your internet connection"
+                    e.message?.contains("No space left") == true ->
+                        "Storage full - free up some space and try again"
+                    else -> "Video download error: ${e.message}"
+                }
             println("❌ Video download failed for ${mediaItem.mediaFile.filename}: $errorMsg")
             e.printStackTrace()
             null
@@ -377,29 +449,35 @@ class LocalPhotoRepository(private val context: Context) {
                 val retriever = MediaMetadataRetriever()
                 retriever.setDataSource(inputFile.absolutePath)
 
-                val widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-                val heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                val widthStr =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                val heightStr =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                val durationStr =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
 
                 val originalWidth = widthStr?.toIntOrNull() ?: 1920
                 val originalHeight = heightStr?.toIntOrNull() ?: 1080
                 val duration = durationStr?.toLongOrNull() ?: 0L
 
-                println("📏 Original video dimensions: ${originalWidth}x${originalHeight}, duration: ${duration}ms")
+                println(
+                    "📏 Original video dimensions: ${originalWidth}x${originalHeight}, duration: ${duration}ms"
+                )
 
                 // Calculate new dimensions (max 1024x1024 while maintaining aspect ratio)
                 val maxDimension = 1024
                 val aspectRatio = originalWidth.toFloat() / originalHeight.toFloat()
 
-                val (newWidth, newHeight) = if (originalWidth > originalHeight) {
-                    val width = min(originalWidth, maxDimension)
-                    val height = (width / aspectRatio).toInt()
-                    width to height
-                } else {
-                    val height = min(originalHeight, maxDimension)
-                    val width = (height * aspectRatio).toInt()
-                    width to height
-                }
+                val (newWidth, newHeight) =
+                    if (originalWidth > originalHeight) {
+                        val width = min(originalWidth, maxDimension)
+                        val height = (width / aspectRatio).toInt()
+                        width to height
+                    } else {
+                        val height = min(originalHeight, maxDimension)
+                        val width = (height * aspectRatio).toInt()
+                        width to height
+                    }
 
                 println("📐 Target dimensions: ${newWidth}x${newHeight}")
 
@@ -417,7 +495,13 @@ class LocalPhotoRepository(private val context: Context) {
                 if (outputFile.exists()) outputFile.delete()
 
                 // Use MediaCodec to re-encode the video
-                val success = transcodeVideo(inputFile.absolutePath, outputFile.absolutePath, newWidth, newHeight)
+                val success =
+                    transcodeVideo(
+                        inputFile.absolutePath,
+                        outputFile.absolutePath,
+                        newWidth,
+                        newHeight
+                    )
 
                 retriever.release()
 
@@ -429,7 +513,6 @@ class LocalPhotoRepository(private val context: Context) {
                     outputFile.delete()
                     null
                 }
-
             } catch (e: Exception) {
                 println("❌ Video processing error: ${e.message}")
                 e.printStackTrace()
@@ -438,7 +521,12 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-            private fun transcodeVideo(inputPath: String, outputPath: String, targetWidth: Int, targetHeight: Int): Boolean {
+    private fun transcodeVideo(
+        inputPath: String,
+        outputPath: String,
+        targetWidth: Int,
+        targetHeight: Int
+    ): Boolean {
         return try {
             println("🎞️ Simple transcoding (compression only): $inputPath -> $outputPath")
 
@@ -448,9 +536,18 @@ class LocalPhotoRepository(private val context: Context) {
             // Get basic video metadata
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(inputPath)
-            val originalWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 1920
-            val originalHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 1080
-            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val originalWidth =
+                retriever
+                    .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                    ?.toIntOrNull() ?: 1920
+            val originalHeight =
+                retriever
+                    .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                    ?.toIntOrNull() ?: 1080
+            val duration =
+                retriever
+                    .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull() ?: 0L
             println("🎞️ Original: ${originalWidth}x${originalHeight}, duration: ${duration}ms")
             retriever.release()
 
@@ -478,15 +575,25 @@ class LocalPhotoRepository(private val context: Context) {
             }
 
             // Simple output format - just compress, keep original dimensions
-            val outputFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, originalWidth, originalHeight).apply {
-                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                setInteger(MediaFormat.KEY_BIT_RATE, 500_000) // 500kbps - very compressed
-                setInteger(MediaFormat.KEY_FRAME_RATE, 24) // Lower frame rate
-                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2) // Key frame every 2 seconds
-            }
+            val outputFormat =
+                MediaFormat.createVideoFormat(
+                        MediaFormat.MIMETYPE_VIDEO_AVC,
+                        originalWidth,
+                        originalHeight
+                    )
+                    .apply {
+                        setInteger(
+                            MediaFormat.KEY_COLOR_FORMAT,
+                            MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
+                        )
+                        setInteger(MediaFormat.KEY_BIT_RATE, 500_000) // 500kbps - very compressed
+                        setInteger(MediaFormat.KEY_FRAME_RATE, 24) // Lower frame rate
+                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2) // Key frame every 2 seconds
+                    }
 
             // Set up MediaMuxer
-            val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            val muxer =
+                MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
             // Set up encoder
             val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
@@ -496,7 +603,8 @@ class LocalPhotoRepository(private val context: Context) {
 
             // Set up decoder
             extractor.selectTrack(videoTrackIndex)
-            val decoder = MediaCodec.createDecoderByType(videoFormat.getString(MediaFormat.KEY_MIME)!!)
+            val decoder =
+                MediaCodec.createDecoderByType(videoFormat.getString(MediaFormat.KEY_MIME)!!)
             decoder.configure(videoFormat, inputSurface, null, 0)
             decoder.start()
 
@@ -517,10 +625,22 @@ class LocalPhotoRepository(private val context: Context) {
                         if (inputBuffer != null) {
                             val sampleSize = extractor.readSampleData(inputBuffer, 0)
                             if (sampleSize < 0) {
-                                decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                decoder.queueInputBuffer(
+                                    inputBufferIndex,
+                                    0,
+                                    0,
+                                    0,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                )
                                 decoderDone = true
                             } else {
-                                decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
+                                decoder.queueInputBuffer(
+                                    inputBufferIndex,
+                                    0,
+                                    sampleSize,
+                                    extractor.sampleTime,
+                                    0
+                                )
                                 extractor.advance()
                             }
                         }
@@ -548,7 +668,9 @@ class LocalPhotoRepository(private val context: Context) {
                 } else if (encoderOutputIndex >= 0) {
                     val encodedData = encoder.getOutputBuffer(encoderOutputIndex)
                     if (encodedData != null) {
-                        if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        if (
+                            (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0
+                        ) {
                             encoderBufferInfo.size = 0
                         }
 
@@ -591,10 +713,12 @@ class LocalPhotoRepository(private val context: Context) {
             }
 
             val compressionRatio = ((inputSize - outputSize).toFloat() / inputSize * 100).toInt()
-            println("✅ Video compressed: ${inputSize/1024}KB -> ${outputSize/1024}KB (${compressionRatio}% smaller)")
+            println(
+                "✅ Video compressed: ${inputSize/1024}KB -> ${outputSize/1024}KB (${compressionRatio}% smaller)"
+            )
 
             true
-                } catch (e: Exception) {
+        } catch (e: Exception) {
             println("❌ Video transcoding failed: ${e.message}")
             // Fallback: copy original file if transcoding fails
             try {
@@ -610,14 +734,21 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-    private fun getVideoMetadata(localPhoto: LocalPhoto, videoFile: File, mediaItem: PickedMediaItem): LocalPhoto {
+    private fun getVideoMetadata(
+        localPhoto: LocalPhoto,
+        videoFile: File,
+        mediaItem: PickedMediaItem
+    ): LocalPhoto {
         return try {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(videoFile.absolutePath)
 
-            val widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-            val heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            val widthStr =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val heightStr =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            val durationStr =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
 
             val width = widthStr?.toIntOrNull()
             val height = heightStr?.toIntOrNull()
@@ -648,19 +779,15 @@ class LocalPhotoRepository(private val context: Context) {
         tempDir.listFiles()?.forEach { it.delete() }
 
         // Clear metadata
-        context.dataStore.edit { preferences ->
-            preferences.remove(PHOTO_METADATA_KEY)
-        }
+        context.dataStore.edit { preferences -> preferences.remove(PHOTO_METADATA_KEY) }
     }
 
     private suspend fun savePhotoMetadata(photos: List<LocalPhoto>) {
         val metadataJson = serializePhotoMetadata(photos)
-        context.dataStore.edit { preferences ->
-            preferences[PHOTO_METADATA_KEY] = metadataJson
-        }
+        context.dataStore.edit { preferences -> preferences[PHOTO_METADATA_KEY] = metadataJson }
     }
 
-            private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
+    private fun parsePhotoMetadata(json: String): List<LocalPhoto> {
         val photos = mutableListOf<LocalPhoto>()
 
         if (json.isBlank() || json == "[]") return emptyList()
@@ -679,27 +806,37 @@ class LocalPhotoRepository(private val context: Context) {
 
                 // Handle video fields (with defaults for backward compatibility)
                 val isVideo = jsonObject.optBoolean("isVideo", false)
-                val videoPath = if (jsonObject.isNull("videoPath")) null else jsonObject.optString("videoPath", null)
-                val originalVideoUrl = if (jsonObject.isNull("originalVideoUrl")) null else jsonObject.optString("originalVideoUrl", null)
-                val videoDurationMs = if (jsonObject.isNull("videoDurationMs")) null else jsonObject.optLong("videoDurationMs")
-                val videoWidth = if (jsonObject.isNull("videoWidth")) null else jsonObject.optInt("videoWidth")
-                val videoHeight = if (jsonObject.isNull("videoHeight")) null else jsonObject.optInt("videoHeight")
+                val videoPath =
+                    if (jsonObject.isNull("videoPath")) null
+                    else jsonObject.optString("videoPath", null)
+                val originalVideoUrl =
+                    if (jsonObject.isNull("originalVideoUrl")) null
+                    else jsonObject.optString("originalVideoUrl", null)
+                val videoDurationMs =
+                    if (jsonObject.isNull("videoDurationMs")) null
+                    else jsonObject.optLong("videoDurationMs")
+                val videoWidth =
+                    if (jsonObject.isNull("videoWidth")) null else jsonObject.optInt("videoWidth")
+                val videoHeight =
+                    if (jsonObject.isNull("videoHeight")) null else jsonObject.optInt("videoHeight")
 
                 // Verify thumbnail file still exists
                 if (File(localPath).exists()) {
-                    photos.add(LocalPhoto(
-                        id = id,
-                        filename = filename,
-                        localPath = localPath,
-                        originalUrl = originalUrl,
-                        mimeType = mimeType,
-                        isVideo = isVideo,
-                        videoPath = videoPath,
-                        originalVideoUrl = originalVideoUrl,
-                        videoDurationMs = videoDurationMs,
-                        videoWidth = videoWidth,
-                        videoHeight = videoHeight
-                    ))
+                    photos.add(
+                        LocalPhoto(
+                            id = id,
+                            filename = filename,
+                            localPath = localPath,
+                            originalUrl = originalUrl,
+                            mimeType = mimeType,
+                            isVideo = isVideo,
+                            videoPath = videoPath,
+                            originalVideoUrl = originalVideoUrl,
+                            videoDurationMs = videoDurationMs,
+                            videoWidth = videoWidth,
+                            videoHeight = videoHeight
+                        )
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -712,25 +849,27 @@ class LocalPhotoRepository(private val context: Context) {
     private fun serializePhotoMetadata(photos: List<LocalPhoto>): String {
         if (photos.isEmpty()) return "[]"
 
-        val jsonObjects = photos.map { photo ->
-            // Escape any quotes in the values
-            val safeId = photo.id.replace("\"", "\\\"")
-            val safeFilename = photo.filename.replace("\"", "\\\"")
-            val safePath = photo.localPath.replace("\"", "\\\"")
-            val safeUrl = photo.originalUrl.replace("\"", "\\\"")
-            val safeMime = photo.mimeType.replace("\"", "\\\"")
-            val safeVideoPath = photo.videoPath?.replace("\"", "\\\"") ?: ""
-            val safeOriginalVideoUrl = photo.originalVideoUrl?.replace("\"", "\\\"") ?: ""
+        val jsonObjects =
+            photos.map { photo ->
+                // Escape any quotes in the values
+                val safeId = photo.id.replace("\"", "\\\"")
+                val safeFilename = photo.filename.replace("\"", "\\\"")
+                val safePath = photo.localPath.replace("\"", "\\\"")
+                val safeUrl = photo.originalUrl.replace("\"", "\\\"")
+                val safeMime = photo.mimeType.replace("\"", "\\\"")
+                val safeVideoPath = photo.videoPath?.replace("\"", "\\\"") ?: ""
+                val safeOriginalVideoUrl = photo.originalVideoUrl?.replace("\"", "\\\"") ?: ""
 
-            // Always include all fields for consistency - simplifies parsing
-            val videoPathValue = if (photo.videoPath != null) """"$safeVideoPath"""" else "null"
-            val originalVideoUrlValue = if (photo.originalVideoUrl != null) """"$safeOriginalVideoUrl"""" else "null"
-            val durationValue = photo.videoDurationMs?.toString() ?: "null"
-            val widthValue = photo.videoWidth?.toString() ?: "null"
-            val heightValue = photo.videoHeight?.toString() ?: "null"
+                // Always include all fields for consistency - simplifies parsing
+                val videoPathValue = if (photo.videoPath != null) """"$safeVideoPath"""" else "null"
+                val originalVideoUrlValue =
+                    if (photo.originalVideoUrl != null) """"$safeOriginalVideoUrl"""" else "null"
+                val durationValue = photo.videoDurationMs?.toString() ?: "null"
+                val widthValue = photo.videoWidth?.toString() ?: "null"
+                val heightValue = photo.videoHeight?.toString() ?: "null"
 
-            """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"videoWidth":$widthValue,"videoHeight":$heightValue}"""
-        }
+                """{"id":"$safeId","filename":"$safeFilename","localPath":"$safePath","originalUrl":"$safeUrl","mimeType":"$safeMime","isVideo":${photo.isVideo},"videoPath":$videoPathValue,"originalVideoUrl":$originalVideoUrlValue,"videoDurationMs":$durationValue,"videoWidth":$widthValue,"videoHeight":$heightValue}"""
+            }
 
         return "[${jsonObjects.joinToString(",")}]"
     }
