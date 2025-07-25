@@ -59,7 +59,7 @@ fun MainScreen(
     onSignOut: () -> Unit,
     onNeedSignIn: () -> Unit = {}
 ) {
-        val pickerState by pickerViewModel.pickerState.collectAsState()
+    val pickerState by pickerViewModel.pickerState.collectAsState()
 
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
     var selectedFromPatchwork by remember { mutableStateOf(false) }
@@ -907,7 +907,10 @@ fun LocalPhotoViewer(photos: List<LocalPhoto>, initialIndex: Int, onDismiss: () 
                                 }
                             }
                             photo.mediaSizeMb?.let { sizeMb ->
-                                append(if (sizeMb < 1f) "%.1f".format(sizeMb) else "%.0f".format(sizeMb))
+                                append(
+                                    if (sizeMb < 1f) "%.1f".format(sizeMb)
+                                    else "%.0f".format(sizeMb)
+                                )
                                 append("MB")
                             }
                         }
@@ -938,7 +941,8 @@ private fun VideoViewer(photo: LocalPhoto, onDismiss: () -> Unit, modifier: Modi
     var dismissOffset by remember { mutableFloatStateOf(0f) }
     val dismissThreshold = 150f
 
-    Box(modifier =
+    Box(
+        modifier =
             modifier
                 .background(
                     Color.Black.copy(
@@ -1030,7 +1034,8 @@ private fun VideoViewer(photo: LocalPhoto, onDismiss: () -> Unit, modifier: Modi
                             }
                         } while (changes.any { it.pressed })
                     }
-                } ) {
+                }
+    ) {
         AndroidView(
             factory = { context ->
                 VideoView(context).apply {
@@ -1055,14 +1060,16 @@ private fun VideoViewer(photo: LocalPhoto, onDismiss: () -> Unit, modifier: Modi
                     setOnErrorListener { _, _, _ -> false }
                 }
             },
-            modifier = Modifier.fillMaxSize().clickable { showControls = !showControls }
-                .offset { IntOffset(0, dismissOffset.roundToInt()) }
-                .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offset.x,
-                    translationY = offset.y
-                ),
+            modifier =
+                Modifier.fillMaxSize()
+                    .clickable { showControls = !showControls }
+                    .offset { IntOffset(0, dismissOffset.roundToInt()) }
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    ),
         ) { view ->
             videoView = view
             // Update playing state when video view changes

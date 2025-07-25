@@ -2,5 +2,5 @@
 <full-backup-content>
 	<!-- Exclude cache and temporary files -->
 	<exclude domain="cache" />
-	<exclude domain="files" path="temp/" />
+	<exclude domain="file" path="temp/" />
 </full-backup-content>

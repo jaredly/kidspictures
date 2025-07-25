@@ -211,8 +211,10 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                     )
                                 }
 
-                                // Throttle rapid updates - only update UI every 10% or on completion to avoid main thread overload
-                                val shouldUpdate = progressPercent % 10 == 0 || currentVideoProgress >= 1.0f
+                                // Throttle rapid updates - only update UI every 10% or on
+                                // completion to avoid main thread overload
+                                val shouldUpdate =
+                                    progressPercent % 10 == 0 || currentVideoProgress >= 1.0f
 
                                 if (shouldUpdate) {
                                     // StateFlow is thread-safe, no need for coroutine dispatch
@@ -220,9 +222,11 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                         _pickerState.value.copy(
                                             isDownloading = false, // Photos are done
                                             isDownloadingVideos = true,
-                                            videoDownloadProgress = Triple(current, total, filename),
+                                            videoDownloadProgress =
+                                                Triple(current, total, filename),
                                             videoDownloadDetailedProgress = currentVideoProgress,
-                                            progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
+                                            progressUpdateCounter =
+                                                _pickerState.value.progressUpdateCounter + 1
                                         )
                                     _pickerState.value = newState
                                 }

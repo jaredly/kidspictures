@@ -93,6 +93,9 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Video transcoding
+    implementation("io.deepmedia.community:transcoder-android:0.11.2")
+
     // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 

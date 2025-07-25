@@ -3,7 +3,7 @@
 	<cloud-backup>
 		<!-- Exclude cache and temporary files -->
 		<exclude domain="cache" />
-		<exclude domain="files" path="temp/" />
+		<exclude domain="file" path="temp/" />
 	</cloud-backup>
 	<device-transfer>
 		<!-- Include user preferences -->
