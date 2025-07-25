@@ -413,6 +413,7 @@ private fun FirstTimeSetupScreen(
 private fun DownloadingScreen(
     progress: Pair<Int, Int>?,
     videoDownloadProgress: Triple<Int, Int, String>? = null,
+    videoDownloadDetailedProgress: Float? = null,
     videoProcessingProgress: Triple<Int, Int, String>? = null,
     onCancel: () -> Unit = {}
 ) {

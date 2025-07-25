@@ -102,7 +102,7 @@ class LocalPhotoRepository(private val context: Context) {
         mediaItems: List<PickedMediaItem>,
         authToken: String,
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> },
-        onVideoDownloadProgress: (current: Int, total: Int, filename: String) -> Unit = { _, _, _ -> },
+        onVideoDownloadProgress: (current: Int, total: Int, filename: String, downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _, _, _, _ -> },
         onVideoProcessingProgress: (current: Int, total: Int, filename: String) -> Unit = { _, _, _ -> }
     ): Result<List<LocalPhoto>> {
         return try {
@@ -146,9 +146,9 @@ class LocalPhotoRepository(private val context: Context) {
 
                         val mediaItem = mediaItems.find { it.id == localPhoto.id }
                         if (mediaItem != null) {
-                            onVideoDownloadProgress(index + 1, videoItems.size, localPhoto.filename)
-
-                            val videoFile = downloadVideo(mediaItem, authToken)
+                            val videoFile = downloadVideo(mediaItem, authToken) { downloadedBytes, totalBytes ->
+                                onVideoDownloadProgress(index + 1, videoItems.size, localPhoto.filename, downloadedBytes, totalBytes)
+                            }
                             if (videoFile != null) {
                                 onVideoProcessingProgress(index + 1, videoItems.size, localPhoto.filename)
 
@@ -277,7 +277,11 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-    private suspend fun downloadVideo(mediaItem: PickedMediaItem, authToken: String): File? {
+    private suspend fun downloadVideo(
+        mediaItem: PickedMediaItem,
+        authToken: String,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+    ): File? {
         return try {
             val baseUrl = mediaItem.mediaFile.baseUrl
             if (baseUrl.isNullOrEmpty()) {
@@ -314,9 +318,30 @@ class LocalPhotoRepository(private val context: Context) {
             val fileName = "${mediaItem.id}_original.mp4"
             val tempFile = File(tempDir, fileName)
 
-            response.body?.byteStream()?.use { inputStream ->
-                FileOutputStream(tempFile).use { outputStream ->
-                    inputStream.copyTo(outputStream)
+            response.body?.let { responseBody ->
+                val totalBytes = responseBody.contentLength()
+                var downloadedBytes = 0L
+
+                responseBody.byteStream().use { inputStream ->
+                    FileOutputStream(tempFile).use { outputStream ->
+                        val buffer = ByteArray(8192) // 8KB buffer
+                        var bytesRead: Int
+
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            downloadedBytes += bytesRead
+
+                            // Report progress (but not too frequently to avoid UI spam)
+                            if (downloadedBytes % (64 * 1024) == 0L || downloadedBytes == totalBytes) {
+                                onProgress(downloadedBytes, totalBytes)
+                            }
+                        }
+
+                        // Ensure final progress is reported
+                        if (downloadedBytes > 0) {
+                            onProgress(downloadedBytes, totalBytes)
+                        }
+                    }
                 }
             }
 
