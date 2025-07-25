@@ -413,14 +413,23 @@ class LocalPhotoRepository(private val context: Context) {
         }
     }
 
-        private fun transcodeVideo(inputPath: String, outputPath: String, targetWidth: Int, targetHeight: Int): Boolean {
+            private fun transcodeVideo(inputPath: String, outputPath: String, targetWidth: Int, targetHeight: Int): Boolean {
         return try {
-            println("🎞️ Transcoding video: $inputPath -> $outputPath (${targetWidth}x${targetHeight})")
+            println("🎞️ Simple transcoding (compression only): $inputPath -> $outputPath")
 
             val inputFile = File(inputPath)
             val outputFile = File(outputPath)
 
-            // Set up MediaExtractor to read the input file
+            // Get basic video metadata
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(inputPath)
+            val originalWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 1920
+            val originalHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 1080
+            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            println("🎞️ Original: ${originalWidth}x${originalHeight}, duration: ${duration}ms")
+            retriever.release()
+
+            // Set up MediaExtractor
             val extractor = MediaExtractor()
             extractor.setDataSource(inputFile.absolutePath)
 
@@ -443,10 +452,10 @@ class LocalPhotoRepository(private val context: Context) {
                 return false
             }
 
-            // Set up output format with compression settings
-            val outputFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, targetWidth, targetHeight).apply {
+            // Simple output format - just compress, keep original dimensions
+            val outputFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, originalWidth, originalHeight).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                setInteger(MediaFormat.KEY_BIT_RATE, 500_000) // 500kbps - very compressed for storage savings
+                setInteger(MediaFormat.KEY_BIT_RATE, 500_000) // 500kbps - very compressed
                 setInteger(MediaFormat.KEY_FRAME_RATE, 24) // Lower frame rate
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2) // Key frame every 2 seconds
             }
@@ -466,11 +475,9 @@ class LocalPhotoRepository(private val context: Context) {
             decoder.configure(videoFormat, inputSurface, null, 0)
             decoder.start()
 
-            // Start transcoding process
-
+            // Transcoding loop
             val decoderBufferInfo = MediaCodec.BufferInfo()
             val encoderBufferInfo = MediaCodec.BufferInfo()
-
             var decoderDone = false
             var encoderDone = false
             var muxerStarted = false
@@ -495,11 +502,10 @@ class LocalPhotoRepository(private val context: Context) {
                     }
                 }
 
-                // Drain decoder (this feeds the encoder via Surface)
+                // Drain decoder
                 val decoderOutputIndex = decoder.dequeueOutputBuffer(decoderBufferInfo, 0)
                 if (decoderOutputIndex >= 0) {
-                    val doRender = decoderBufferInfo.size != 0
-                    decoder.releaseOutputBuffer(decoderOutputIndex, doRender)
+                    decoder.releaseOutputBuffer(decoderOutputIndex, decoderBufferInfo.size != 0)
                     if ((decoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         encoder.signalEndOfInputStream()
                     }
@@ -511,11 +517,10 @@ class LocalPhotoRepository(private val context: Context) {
                     if (muxerStarted) {
                         throw RuntimeException("Format changed after muxer started")
                     }
-                    val newFormat = encoder.outputFormat
-                    videoTrackOut = muxer.addTrack(newFormat)
+                    videoTrackOut = muxer.addTrack(encoder.outputFormat)
                     muxer.start()
                     muxerStarted = true
-                                } else if (encoderOutputIndex >= 0) {
+                } else if (encoderOutputIndex >= 0) {
                     val encodedData = encoder.getOutputBuffer(encoderOutputIndex)
                     if (encodedData != null) {
                         if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
@@ -546,26 +551,35 @@ class LocalPhotoRepository(private val context: Context) {
             encoder.stop()
             encoder.release()
             extractor.release()
-            muxer.stop()
+            if (muxerStarted) {
+                muxer.stop()
+            }
             muxer.release()
             inputSurface.release()
 
             val inputSize = inputFile.length()
             val outputSize = outputFile.length()
+
+            if (outputSize == 0L) {
+                println("❌ Output file is empty")
+                return false
+            }
+
             val compressionRatio = ((inputSize - outputSize).toFloat() / inputSize * 100).toInt()
-            println("✅ Video transcoded: ${inputSize/1024}KB -> ${outputSize/1024}KB (${compressionRatio}% smaller)")
+            println("✅ Video compressed: ${inputSize/1024}KB -> ${outputSize/1024}KB (${compressionRatio}% smaller)")
 
             true
-        } catch (e: Exception) {
+                } catch (e: Exception) {
             println("❌ Video transcoding failed: ${e.message}")
-            e.printStackTrace()
             // Fallback: copy original file if transcoding fails
             try {
-                File(inputPath).copyTo(File(outputPath), overwrite = true)
-                println("⚠️ Fallback: copied original video without transcoding")
+                val inputFile = File(inputPath)
+                val inputSize = inputFile.length()
+                inputFile.copyTo(File(outputPath), overwrite = true)
+                println("⚠️ Fallback: copied original video (${inputSize/1024}KB)")
                 true
             } catch (fallbackError: Exception) {
-                println("❌ Even fallback copy failed: ${fallbackError.message}")
+                println("❌ Fallback copy failed: ${fallbackError.message}")
                 false
             }
         }
