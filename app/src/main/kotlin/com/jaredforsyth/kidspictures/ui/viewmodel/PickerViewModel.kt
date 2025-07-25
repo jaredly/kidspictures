@@ -187,10 +187,8 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             authToken = accessToken,
                             onProgress = { current, total ->
                                 println("📊 Download progress: $current/$total")
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    _pickerState.value =
-                                        _pickerState.value.copy(downloadProgress = Pair(current, total))
-                                }
+                                _pickerState.value =
+                                    _pickerState.value.copy(downloadProgress = Pair(current, total))
                             },
                             onVideoDownloadProgress = {
                                 current,
@@ -206,50 +204,37 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                     } else 0f
                                 val progressPercent = (currentVideoProgress * 100).toInt()
 
-                                // Only log progress updates that will actually update the UI
-                                // if (progressPercent % 5 == 0 || currentVideoProgress >= 1.0f) {
-                                println(
-                                    "🎯 PickerViewModel received progress: $current/$total - $filename"
-                                )
-                                println("   📊 Bytes: $downloadedBytes/$totalBytes")
-                                println(
-                                    "   📈 Progress: $currentVideoProgress (${progressPercent}%)"
-                                )
-                                // }
+                                // Log only significant progress updates to reduce noise
+                                if (progressPercent % 20 == 0 || currentVideoProgress >= 1.0f) {
+                                    println(
+                                        "🎯 PickerViewModel: $current/$total - $filename (${progressPercent}%)"
+                                    )
+                                }
 
                                 // Throttle rapid updates - only update UI every 10% or on completion to avoid main thread overload
                                 val shouldUpdate = progressPercent % 10 == 0 || currentVideoProgress >= 1.0f
 
                                 if (shouldUpdate) {
-                                    // Dispatch state update to main thread
-                                    viewModelScope.launch(Dispatchers.Main) {
-                                        val newState =
-                                            _pickerState.value.copy(
-                                                isDownloading = false, // Photos are done
-                                                isDownloadingVideos = true,
-                                                videoDownloadProgress = Triple(current, total, filename),
-                                                videoDownloadDetailedProgress = currentVideoProgress,
-                                                progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
-                                            )
-                                        _pickerState.value = newState
-                                        println(
-                                            "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}, counter=${newState.progressUpdateCounter}"
+                                    // StateFlow is thread-safe, no need for coroutine dispatch
+                                    val newState =
+                                        _pickerState.value.copy(
+                                            isDownloading = false, // Photos are done
+                                            isDownloadingVideos = true,
+                                            videoDownloadProgress = Triple(current, total, filename),
+                                            videoDownloadDetailedProgress = currentVideoProgress,
+                                            progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
                                         )
-                                    }
-                                } else {
-                                    println("   ⏭️ Throttled update (${progressPercent}%)")
+                                    _pickerState.value = newState
                                 }
                             },
                             onVideoProcessingProgress = { current, total, filename ->
                                 println("🔄 Video processing progress: $current/$total - $filename")
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    _pickerState.value =
-                                        _pickerState.value.copy(
-                                            isDownloadingVideos = false, // Video downloads are done
-                                            isProcessingVideos = true,
-                                            videoProcessingProgress = Triple(current, total, filename)
-                                        )
-                                }
+                                _pickerState.value =
+                                    _pickerState.value.copy(
+                                        isDownloadingVideos = false, // Video downloads are done
+                                        isProcessingVideos = true,
+                                        videoProcessingProgress = Triple(current, total, filename)
+                                    )
                             }
                         )
 
