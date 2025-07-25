@@ -930,7 +930,107 @@ private fun VideoViewer(photo: LocalPhoto, onDismiss: () -> Unit, modifier: Modi
     var showControls by remember { mutableStateOf(true) }
     var videoView by remember { mutableStateOf<VideoView?>(null) }
 
-    Box(modifier = modifier) {
+    // Zoom and pan state
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // Dismiss gesture state
+    var dismissOffset by remember { mutableFloatStateOf(0f) }
+    val dismissThreshold = 150f
+
+    Box(modifier =
+            modifier
+                .background(
+                    Color.Black.copy(
+                        alpha =
+                            1f -
+                                maxOf(
+                                    (kotlin.math.abs(dismissOffset) / dismissThreshold).coerceIn(
+                                        0f,
+                                        0.8f
+                                    ), // Swipe dismiss fade
+                                    if (scale < 1f) ((1f - scale) / 0.2f).coerceIn(0f, 0.8f)
+                                    else 0f // Zoom out fade
+                                )
+                    )
+                )
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        do {
+                            val event = awaitPointerEvent()
+                            val changes = event.changes
+
+                            if (changes.size == 1) {
+                                // Single finger - handle dismiss or pan
+                                val change = changes.first()
+                                if (change.pressed) {
+                                    val delta = change.position - change.previousPosition
+
+                                    if (scale <= 1f) {
+                                        // Not zoomed - vertical drag for dismiss
+                                        dismissOffset += delta.y
+                                    } else {
+                                        // Zoomed - pan around image
+                                        offset =
+                                            Offset(
+                                                x =
+                                                    (offset.x + delta.x).coerceIn(
+                                                        -size.width.toFloat() * (scale - 1) / 2,
+                                                        size.width.toFloat() * (scale - 1) / 2
+                                                    ),
+                                                y =
+                                                    (offset.y + delta.y).coerceIn(
+                                                        -size.height.toFloat() * (scale - 1) / 2,
+                                                        size.height.toFloat() * (scale - 1) / 2
+                                                    )
+                                            )
+                                    }
+                                }
+                            } else if (changes.size == 2) {
+                                // Two fingers - handle zoom
+                                val change1 = changes[0]
+                                val change2 = changes[1]
+
+                                if (change1.pressed && change2.pressed) {
+                                    val currentDistance =
+                                        (change1.position - change2.position).getDistance()
+                                    val previousDistance =
+                                        (change1.previousPosition - change2.previousPosition)
+                                            .getDistance()
+
+                                    if (previousDistance > 0) {
+                                        val zoomChange = currentDistance / previousDistance
+                                        val newScale = (scale * zoomChange).coerceIn(0.5f, 5f)
+                                        scale = newScale
+
+                                        // Reset pan when at normal zoom
+                                        if (scale <= 1f) {
+                                            offset = Offset.Zero
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Check for gesture end
+                            if (changes.none { it.pressed }) {
+                                // Gesture ended - check dismiss conditions
+                                if (scale < 0.8f) {
+                                    onDismiss()
+                                } else if (
+                                    scale <= 1f && kotlin.math.abs(dismissOffset) > dismissThreshold
+                                ) {
+                                    onDismiss()
+                                } else {
+                                    // Reset to normal state
+                                    if (scale < 1f) {
+                                        scale = 1f
+                                    }
+                                    dismissOffset = 0f
+                                }
+                            }
+                        } while (changes.any { it.pressed })
+                    }
+                } ) {
         AndroidView(
             factory = { context ->
                 VideoView(context).apply {
@@ -956,6 +1056,13 @@ private fun VideoViewer(photo: LocalPhoto, onDismiss: () -> Unit, modifier: Modi
                 }
             },
             modifier = Modifier.fillMaxSize().clickable { showControls = !showControls }
+                .offset { IntOffset(0, dismissOffset.roundToInt()) }
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
         ) { view ->
             videoView = view
             // Update playing state when video view changes

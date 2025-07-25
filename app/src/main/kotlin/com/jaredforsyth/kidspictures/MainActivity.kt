@@ -15,7 +15,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.jaredforsyth.kidspictures.ui.screens.MainScreen
-import com.jaredforsyth.kidspictures.ui.screens.PhotoGalleryScreen
 import com.jaredforsyth.kidspictures.ui.screens.PickerLaunchScreen
 import com.jaredforsyth.kidspictures.ui.screens.SignInScreen
 import com.jaredforsyth.kidspictures.ui.theme.KidsPicturesTheme
@@ -85,19 +84,6 @@ fun KidsPicturesApp() {
                 onSignOut = {
                     navController.navigate("sign_in") { popUpTo(0) { inclusive = true } }
                 }
-            )
-        }
-
-        composable("photo_gallery") {
-            val pickerViewModel: PickerViewModel =
-                viewModel(
-                    viewModelStoreOwner = navController.getBackStackEntry("main"),
-                    factory = PickerViewModelFactory(LocalContext.current)
-                )
-
-            PhotoGalleryScreen(
-                pickerViewModel = pickerViewModel,
-                onBackToSelection = { navController.popBackStack() }
             )
         }
     }
