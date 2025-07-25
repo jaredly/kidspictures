@@ -34,6 +34,7 @@ data class PickerState(
     val isDownloadingVideos: Boolean = false,
     val videoDownloadProgress: Triple<Int, Int, String>? = null, // current/total/filename
     val videoDownloadDetailedProgress: Float? = null, // 0.0 to 1.0 granular progress
+    val progressUpdateCounter: Int = 0, // Counter to force UI updates
     val isProcessingVideos: Boolean = false,
     val videoProcessingProgress: Triple<Int, Int, String>? = null, // current/total/filename
     val pickerUri: String? = null,
@@ -202,6 +203,8 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                     } else 0f
                                 val progressPercent = (currentVideoProgress * 100).toInt()
 
+                                // Only log progress updates that will actually update the UI
+                                // if (progressPercent % 5 == 0 || currentVideoProgress >= 1.0f) {
                                 println(
                                     "🎯 PickerViewModel received progress: $current/$total - $filename"
                                 )
@@ -209,18 +212,28 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                 println(
                                     "   📈 Progress: $currentVideoProgress (${progressPercent}%)"
                                 )
+                                // }
 
+                                // Throttle rapid updates - only update UI every 5% or on completion
+                                // val shouldUpdate = progressPercent % 5 == 0 ||
+                                // currentVideoProgress >= 1.0f
+
+                                // if (shouldUpdate) {
                                 val newState =
                                     _pickerState.value.copy(
                                         isDownloading = false, // Photos are done
                                         isDownloadingVideos = true,
                                         videoDownloadProgress = Triple(current, total, filename),
-                                        videoDownloadDetailedProgress = currentVideoProgress
+                                        videoDownloadDetailedProgress = currentVideoProgress,
+                                        progressUpdateCounter = _pickerState.value.progressUpdateCounter + 1
                                     )
                                 _pickerState.value = newState
                                 println(
-                                    "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}"
+                                    "   🔄 State updated: videoDownloadDetailedProgress=${newState.videoDownloadDetailedProgress}, counter=${newState.progressUpdateCounter}"
                                 )
+                                // } else {
+                                //     println("   ⏭️ Throttled update (${progressPercent}%)")
+                                // }
                             },
                             onVideoProcessingProgress = { current, total, filename ->
                                 println("🔄 Video processing progress: $current/$total - $filename")
@@ -246,6 +259,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                     downloadProgress = null,
                                     videoDownloadProgress = null,
                                     videoDownloadDetailedProgress = null,
+                                    progressUpdateCounter = 0,
                                     videoProcessingProgress = null,
                                     localPhotos = localPhotos,
                                     hasLocalPhotos = true,
@@ -265,6 +279,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                                     downloadProgress = null,
                                     videoDownloadProgress = null,
                                     videoDownloadDetailedProgress = null,
+                                    progressUpdateCounter = 0,
                                     videoProcessingProgress = null,
                                     error = "Download failed: ${error.message}"
                                 )
@@ -280,6 +295,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             downloadProgress = null,
                             videoDownloadProgress = null,
                             videoDownloadDetailedProgress = null,
+                            progressUpdateCounter = 0,
                             videoProcessingProgress = null,
                             selectedMediaItems = emptyList(),
                             currentSession = null,
@@ -297,6 +313,7 @@ class PickerViewModel(private val context: Context) : ViewModel() {
                             downloadProgress = null,
                             videoDownloadProgress = null,
                             videoDownloadDetailedProgress = null,
+                            progressUpdateCounter = 0,
                             videoProcessingProgress = null,
                             error = "Download error: ${e.message}"
                         )

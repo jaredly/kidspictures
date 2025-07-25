@@ -60,6 +60,12 @@ fun MainScreen(
     onNeedSignIn: () -> Unit = {}
 ) {
     val pickerState by pickerViewModel.pickerState.collectAsState()
+
+    // Debug: Log state changes
+    LaunchedEffect(pickerState.videoDownloadDetailedProgress) {
+        println("🖥️ MainScreen: videoDownloadDetailedProgress changed to ${pickerState.videoDownloadDetailedProgress}")
+    }
+
     var selectedPhotoIndex by remember { mutableIntStateOf(-1) }
     var selectedFromPatchwork by remember { mutableStateOf(false) }
     var patchworkDisplayIndex by remember { mutableIntStateOf(-1) }
@@ -431,15 +437,15 @@ private fun DownloadingScreen(
             // Show streaming progress if available
             if (videoDownloadDetailedProgress != null) {
                 val displayPercent = (videoDownloadDetailedProgress * 100).toInt()
-                println(
-                    "🖥️ UI displaying progress: $videoDownloadDetailedProgress -> $displayPercent%"
-                )
+                println("🖥️ UI Composing with progress: $videoDownloadDetailedProgress -> $displayPercent%")
                 Text(
                     text = "${displayPercent}% of current video",
                     fontSize = 11.sp,
                     color = FunOrange,
                     fontStyle = FontStyle.Italic
                 )
+            } else {
+                println("🖥️ UI Composing with NO detailed progress")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -448,9 +454,6 @@ private fun DownloadingScreen(
                 videoDownloadDetailedProgress
                     ?: (videoDownloadProgress.first.toFloat() /
                         videoDownloadProgress.second.toFloat())
-            println(
-                "🖥️ Progress bar value: $progressBarValue (detailed=$videoDownloadDetailedProgress, fallback=${videoDownloadProgress.first}/${videoDownloadProgress.second})"
-            )
             LinearProgressIndicator(
                 progress = progressBarValue,
                 modifier = Modifier.fillMaxWidth(),

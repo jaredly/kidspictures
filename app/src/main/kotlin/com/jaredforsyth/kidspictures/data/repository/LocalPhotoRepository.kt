@@ -19,12 +19,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -370,24 +368,23 @@ class LocalPhotoRepository(private val context: Context) {
                             outputStream.write(buffer, 0, bytesRead)
                             downloadedBytes += bytesRead
 
-                            // Report progress every 8KB (one buffer) or at completion for very
-                            // smooth updates
+                            // Report progress every 256KB for throttled UI updates
                             if (
-                                downloadedBytes % (8 * 1024) == 0L || downloadedBytes == totalBytes
+                                downloadedBytes % (256 * 1024) == 0L ||
+                                    downloadedBytes == totalBytes
                             ) {
                                 progressCallCount++
                                 val progressPercent =
-                                    if (totalBytes > 0) (downloadedBytes * 100 / totalBytes) else 0
-                                println(
-                                    "🔍 Progress callback #$progressCallCount: $downloadedBytes/$totalBytes bytes (${progressPercent}%)"
-                                )
-
-                                // Call progress on main thread for UI updates
-                                kotlinx.coroutines.GlobalScope.launch(
-                                    kotlinx.coroutines.Dispatchers.Main
-                                ) {
+                                    if (totalBytes > 0) (downloadedBytes * 100 / totalBytes).toInt()
+                                    else 0
+                                // Only log every 10% for cleaner logs
+                                if (progressCallCount % 50 == 0 || downloadedBytes == totalBytes) {
+                                    println(
+                                        "🔍 Progress callback #$progressCallCount: $downloadedBytes/$totalBytes bytes (${progressPercent}%)"
+                                    )
                                     onProgress(downloadedBytes, totalBytes)
                                 }
+
                             }
                         }
 
@@ -395,17 +392,13 @@ class LocalPhotoRepository(private val context: Context) {
                         if (downloadedBytes > 0) {
                             progressCallCount++
                             val finalPercent =
-                                if (totalBytes > 0) (downloadedBytes * 100 / totalBytes) else 0
+                                if (totalBytes > 0) (downloadedBytes * 100 / totalBytes).toInt()
+                                else 0
                             println(
                                 "🔍 Final progress callback #$progressCallCount: $downloadedBytes/$totalBytes bytes (${finalPercent}%)"
                             )
 
-                            // Call final progress on main thread for UI updates
-                            kotlinx.coroutines.GlobalScope.launch(
-                                kotlinx.coroutines.Dispatchers.Main
-                            ) {
-                                onProgress(downloadedBytes, totalBytes)
-                            }
+                            onProgress(downloadedBytes, totalBytes)
                         }
 
                         println("🔍 Download completed: total callbacks = $progressCallCount")
